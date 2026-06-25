@@ -15,6 +15,9 @@ export default defineConfig({
   // auto-emits the Build Output API (`.vercel/output`) — see TanStack hosting docs.
   plugins: [tailwindcss(), tanstackStart(), nitro(), viteReact()],
   ssr: {
-    noExternal: ["@convex-dev/better-auth"],
+    // Bundle all deps into the SSR output. Required on Vercel: Nitro's file
+    // tracing misses bun's hoisted `.bun/` node_modules, so externalized deps
+    // (react, etc.) are missing at runtime in the serverless function.
+    noExternal: true,
   },
 });
