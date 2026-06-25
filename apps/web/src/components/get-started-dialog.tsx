@@ -50,7 +50,12 @@ export function GetStartedDialog({ children }: { children: React.ReactElement })
           </DialogDescription>
         </DialogHeader>
         <DialogPanel className="space-y-4">
-          <CodeBlock text={prompt} />
+          <div className="space-y-2">
+            <span className="font-mono text-[0.65rem] text-muted-foreground uppercase tracking-[0.18em]">
+              Agent prompt
+            </span>
+            <CodeBlock text={prompt} language="prompt" />
+          </div>
           <Button size="lg" className="w-full" onClick={copy}>
             {copied ? <CheckIcon /> : <CopyIcon />}
             {copied ? "Copied" : "Copy agent prompt"}

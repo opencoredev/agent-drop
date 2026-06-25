@@ -1,12 +1,23 @@
 import { cn } from "@agent-drop/ui/lib/utils";
 
 function ConvexMark({ className }: { className?: string }) {
-  // Three overlapping lobes evoking the Convex logomark.
+  // Official Convex logomark (the three "shards"), traced from convex.dev's
+  // brand asset (logoColor.svg). viewBox is cropped tight to the symbol so it
+  // renders crisply at small sizes; brand colors per convex.dev/brand.
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <circle cx="12" cy="7" r="4.4" fill="#F3B01C" fillOpacity="0.92" />
-      <circle cx="7.2" cy="15.5" r="4.4" fill="#EE342F" fillOpacity="0.92" />
-      <circle cx="16.8" cy="15.5" r="4.4" fill="#8B5CF6" fillOpacity="0.92" />
+    <svg viewBox="46 42 56 62" className={className} aria-hidden="true" fill="none">
+      <path
+        d="M82.2808 87.6516C89.652 86.8381 96.6012 82.9352 100.427 76.421C98.6156 92.533 80.8853 102.717 66.413 96.4643C65.0795 95.8897 63.9316 94.9339 63.1438 93.705C59.8915 88.6302 58.8224 82.1729 60.3585 76.3129C64.7475 83.8398 73.6717 88.4538 82.2808 87.6516Z"
+        fill="#F3B01C"
+      />
+      <path
+        d="M60.0895 71.5852C57.1016 78.4465 56.9722 86.4797 60.6353 93.0906C47.7442 83.453 47.8848 62.8294 60.4778 53.2885C61.6425 52.4067 63.0267 51.8833 64.4785 51.8036C70.4486 51.4907 76.5144 53.7835 80.7683 58.0561C72.1254 58.1415 63.7076 63.643 60.0895 71.5852Z"
+        fill="#8D2676"
+      />
+      <path
+        d="M84.9366 60.1673C80.5757 54.1253 73.7503 50.0119 66.2722 49.8868C80.7277 43.3669 98.5086 53.9375 100.444 69.5659C100.624 71.0167 100.388 72.4959 99.7409 73.8044C97.04 79.2547 92.032 83.4819 86.1801 85.0464C90.4678 77.144 89.9388 67.4893 84.9366 60.1673Z"
+        fill="#EE342F"
+      />
     </svg>
   );
 }

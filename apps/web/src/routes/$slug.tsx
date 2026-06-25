@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 
 import Loader from "@/components/loader";
 import { SiteViewer } from "@/components/site-viewer";
-import { Wordmark } from "@/components/wordmark";
+import { DropletMark, Wordmark } from "@/components/wordmark";
 
 export const Route = createFileRoute("/$slug")({
   component: ViewerPage,
@@ -19,12 +19,17 @@ function ViewerPage() {
 
   if (site === null) {
     return (
-      <div className="grid min-h-svh place-items-center px-4 text-center">
-        <div>
-          <p className="font-mono text-muted-foreground text-xs uppercase tracking-[0.2em]">404</p>
-          <h1 className="mt-3 font-semibold text-2xl tracking-tight">Site not found</h1>
-          <p className="mt-2 text-muted-foreground">This site may have expired or never existed.</p>
-          <Link to="/" className={`mt-6 ${buttonVariants({ variant: "outline" })}`}>
+      <div className="grid min-h-svh place-items-center px-6 text-center">
+        <div className="max-w-sm">
+          <DropletMark className="mx-auto size-9 opacity-35" />
+          <p className="mt-6 font-mono text-[0.65rem] text-muted-foreground uppercase tracking-[0.2em]">
+            404 · not found
+          </p>
+          <h1 className="mt-3 font-semibold text-2xl tracking-tight">This drop has dried up</h1>
+          <p className="mt-2 text-muted-foreground">
+            The site may have expired, been deleted, or never existed.
+          </p>
+          <Link to="/" className={`mt-7 ${buttonVariants({ variant: "outline" })}`}>
             Back to AgentDrop
           </Link>
         </div>
@@ -34,18 +39,25 @@ function ViewerPage() {
 
   return (
     <div className="min-h-svh">
-      <div className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-border/60 bg-background/85 px-4 backdrop-blur">
-        <Link to="/" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Wordmark className="text-sm" />
-        </Link>
-        <div className="flex items-center gap-3 text-muted-foreground text-xs">
-          {site.title ? <span className="max-w-[40vw] truncate">{site.title}</span> : null}
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-            live
-          </span>
+      <header className="sticky top-0 z-10 border-border/60 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between gap-4 px-4">
+          <Link
+            to="/"
+            className="shrink-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Wordmark className="text-sm" />
+          </Link>
+          <div className="flex min-w-0 items-center gap-3">
+            {site.title ? (
+              <span className="min-w-0 truncate text-muted-foreground text-xs">{site.title}</span>
+            ) : null}
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/70 px-2 py-0.5 text-[0.7rem] text-muted-foreground">
+              <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+              live
+            </span>
+          </div>
         </div>
-      </div>
+      </header>
       <SiteViewer site={site} />
     </div>
   );

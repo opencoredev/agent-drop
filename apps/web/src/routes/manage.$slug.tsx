@@ -70,7 +70,7 @@ function ManagePage() {
         ) : (
           <div className="space-y-8">
             {/* Overview */}
-            <div className="rounded-xl border p-5">
+            <div className="rounded-xl border bg-card p-5">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{site.title ?? slug}</p>
@@ -92,7 +92,7 @@ function ManagePage() {
             </div>
 
             {!token ? (
-              <div className="rounded-xl border border-dashed p-5 text-muted-foreground text-sm">
+              <div className="rounded-xl border border-dashed bg-card/40 p-5 text-muted-foreground text-sm">
                 Add the site's edit token to this URL (<code className="font-mono">?t=…</code>) to
                 manage it. The token was included in the{" "}
                 <code className="font-mono">manageUrl</code> your agent received at deploy time.

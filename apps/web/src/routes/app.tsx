@@ -49,7 +49,7 @@ function MySites() {
 
   if (sites.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card/40 px-6 py-16 text-center">
         <div className="flex size-10 items-center justify-center rounded-lg border bg-muted/40">
           <FileText className="size-5 text-muted-foreground" />
         </div>
@@ -62,7 +62,7 @@ function MySites() {
   }
 
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-xl border">
+    <ul className="divide-y divide-border overflow-hidden rounded-xl border bg-card">
       {sites.map((s) => (
         <li
           key={s.slug}
