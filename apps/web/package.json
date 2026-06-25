@@ -1,0 +1,47 @@
+{
+  "name": "web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "serve": "vite preview",
+    "dev": "vite dev"
+  },
+  "dependencies": {
+    "@agent-drop/backend": "workspace:*",
+    "@agent-drop/env": "workspace:*",
+    "@agent-drop/ui": "workspace:*",
+    "@convex-dev/better-auth": "catalog:",
+    "@convex-dev/react-query": "^0.1.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/react-form": "^1.28.0",
+    "@tanstack/react-query": "^5.99.0",
+    "@tanstack/react-router": "^1.168.22",
+    "@tanstack/react-router-ssr-query": "^1.166.11",
+    "@tanstack/react-start": "^1.167.41",
+    "better-auth": "catalog:",
+    "convex": "catalog:",
+    "dotenv": "catalog:",
+    "lucide-react": "^1.8.0",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sonner": "^2.0.7",
+    "streamdown": "^2.5.0",
+    "tailwindcss": "^4.2.2",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@agent-drop/config": "workspace:*",
+    "@tanstack/react-router-devtools": "^1.166.13",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^6.0.1",
+    "jsdom": "^29.0.2",
+    "typescript": "catalog:",
+    "vite": "^8.0.8",
+    "web-vitals": "^5.2.0"
+  }
+}

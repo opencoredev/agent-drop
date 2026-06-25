@@ -1,0 +1,3 @@
+{
+  "extends": "@agent-drop/config/tsconfig.base.json"
+}

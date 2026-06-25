@@ -1,0 +1,26 @@
+{
+  "name": "@agent-drop/backend",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "scripts": {
+    "dev": "convex dev",
+    "dev:setup": "convex dev --configure --until-success"
+  },
+  "dependencies": {
+    "@convex-dev/better-auth": "catalog:",
+    "@convex-dev/r2": "^0.10.2",
+    "@convex-dev/rate-limiter": "^0.3.2",
+    "better-auth": "catalog:",
+    "convex": "catalog:",
+    "convex-timeline": "^0.1.2",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@agent-drop/config": "workspace:*",
+    "@types/node": "^24.3.0",
+    "typescript": "catalog:"
+  }
+}
