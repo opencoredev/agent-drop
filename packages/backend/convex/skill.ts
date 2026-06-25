@@ -39,15 +39,16 @@ Response:
 
 \`\`\`json
 {
-  "slug": "a1b2c3d4",
-  "url": "https://app.example/a1b2c3d4",        // share this with the user
-  "manageUrl": "https://app.example/manage/a1b2c3d4?t=SECRET",
+  "slug": "3f9a8c1e-7b2d-4c6a-9e1f-2a8b7c6d5e4f",
+  "url": "https://app.example/3f9a8c1e-7b2d-4c6a-9e1f-2a8b7c6d5e4f",        // share this with the user
+  "manageUrl": "https://app.example/manage/3f9a8c1e-7b2d-4c6a-9e1f-2a8b7c6d5e4f?t=SECRET",
   "editToken": "SECRET",                          // SAVE THIS
   "kind": "markdown",
   "expiresAt": 1730000000000
 }
 \`\`\`
 
+Each deploy is assigned a random unguessable URL automatically — you don't choose it.
 **Persist the \`editToken\` and \`slug\`** (e.g. in your working notes). You need the
 token to update, undo, or delete the site later. Give the user the \`url\` and the
 \`manageUrl\` (the manage page lets them sign in to keep the site for 90 days).
@@ -110,7 +111,6 @@ curl -X DELETE ${base}/api/v1/sites/<slug> -H "Authorization: Bearer <editToken>
 ## Limits
 
 - Content: ≤ 1 MB per site. \`kind\` must be \`markdown\` or \`html\`.
-- Custom slug (optional \`"slug"\` on create): 2–40 chars, lowercase letters/digits/hyphens.
 - Errors return JSON \`{ "error": "..." }\` with a 4xx/5xx status; rate limits return 429.
 `;
 }

@@ -5,14 +5,14 @@ import { Authenticated, Unauthenticated } from "convex/react";
 import { GetStartedDialog } from "./get-started-dialog";
 import { ThemeToggle } from "./theme-toggle";
 import UserMenu from "./user-menu";
+import { Wordmark } from "./wordmark";
 
 export function Nav() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="inline-block size-2.5 rounded-full bg-primary" />
-          AgentDrop
+        <Link to="/" className="-m-1.5 rounded-md p-1.5 text-[0.95rem] outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Wordmark />
         </Link>
         <nav className="flex items-center gap-1.5">
           <ThemeToggle />

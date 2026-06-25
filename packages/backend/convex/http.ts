@@ -4,15 +4,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { type ActionCtx, httpAction } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
-import {
-  LIMITS,
-  RETENTION,
-  generateEditToken,
-  generateSlug,
-  isValidCustomSlug,
-  scanForSecrets,
-  sha256Hex,
-} from "./lib";
+import { LIMITS, RETENTION, generateEditToken, scanForSecrets, sha256Hex } from "./lib";
 import { r2 } from "./r2";
 import { rateLimiter } from "./rateLimiter";
 import { skillMarkdown } from "./skill";
@@ -120,11 +112,13 @@ function versionKey(slug: string, kind: "markdown" | "html"): string {
 }
 
 async function uniqueSlug(ctx: ActionCtx): Promise<string> {
+  // Every site gets an unguessable random UUID. Collisions are astronomically
+  // unlikely, but the existence check is cheap insurance.
   for (let i = 0; i < 6; i++) {
-    const slug = generateSlug();
+    const slug = crypto.randomUUID();
     if (!(await ctx.runQuery(internal.sites.slugExists, { slug }))) return slug;
   }
-  return generateSlug(10);
+  return crypto.randomUUID();
 }
 
 // ---------------------------------------------------------------------------
@@ -147,20 +141,7 @@ const createSite = httpAction(async (ctx, request) => {
   const parsed = parseContent(body);
   if ("error" in parsed) return fail(parsed.status, parsed.error);
 
-  const requested = (body as Record<string, unknown>).slug;
-  let slug: string;
-  if (typeof requested === "string" && requested.length > 0) {
-    const candidate = requested.toLowerCase();
-    if (!isValidCustomSlug(candidate)) {
-      return fail(400, "Invalid slug. Use 2–40 chars: lowercase letters, digits, and hyphens.");
-    }
-    if (await ctx.runQuery(internal.sites.slugExists, { slug: candidate })) {
-      return fail(409, "That slug is already taken.");
-    }
-    slug = candidate;
-  } else {
-    slug = await uniqueSlug(ctx);
-  }
+  const slug = await uniqueSlug(ctx);
 
   const editToken = generateEditToken();
   const editTokenHash = await sha256Hex(editToken);

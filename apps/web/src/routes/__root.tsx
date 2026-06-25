@@ -39,7 +39,12 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
           "Give your agents a simple way to host static sites. Deploy Markdown or HTML with one API call — versioned, undoable, and shareable.",
       },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "stylesheet", href: appCss },
+    ],
   }),
 
   component: RootDocument,

@@ -20,46 +20,6 @@ export const LIMITS = {
   maxTitleLength: 200,
 } as const;
 
-/** Route names that may never be used as a custom site slug. */
-const RESERVED_SLUGS = new Set([
-  "api",
-  "s",
-  "app",
-  "manage",
-  "assets",
-  "sites",
-  "login",
-  "signin",
-  "signup",
-  "sign-in",
-  "sign-up",
-  "about",
-  "terms",
-  "privacy",
-  "favicon.ico",
-  "robots.txt",
-  "agentdrop-skill.md",
-]);
-
-const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-/** Generate an unguessable, URL-safe slug (default 8 chars of base36). */
-export function generateSlug(length = 8): string {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += SLUG_ALPHABET[bytes[i] % SLUG_ALPHABET.length];
-  }
-  return out;
-}
-
-/** Validate a user-supplied custom slug. */
-export function isValidCustomSlug(slug: string): boolean {
-  if (RESERVED_SLUGS.has(slug)) return false;
-  return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/.test(slug);
-}
-
 /** Generate a 32-byte secret edit token as a hex string. */
 export function generateEditToken(): string {
   const bytes = new Uint8Array(32);

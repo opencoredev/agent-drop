@@ -3,7 +3,7 @@ import { Button, buttonVariants } from "@agent-drop/ui/components/button";
 import { Separator } from "@agent-drop/ui/components/separator";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { ExternalLink, Redo2, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Redo2, Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -47,11 +47,14 @@ function ManagePage() {
       <Nav />
       <main className="mx-auto max-w-2xl px-4 py-12">
         <div className="mb-8">
-          <Link to="/" className="text-muted-foreground text-sm hover:text-foreground">
-            ← AgentDrop
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-3.5" /> Back
           </Link>
-          <h1 className="mt-3 font-semibold text-3xl tracking-tight">Manage site</h1>
-          <p className="mt-1 font-mono text-muted-foreground text-sm">/{slug}</p>
+          <h1 className="mt-4 font-semibold text-3xl tracking-tight">Manage site</h1>
+          <p className="mt-1.5 truncate font-mono text-muted-foreground text-xs">/{slug}</p>
         </div>
 
         {site === undefined ? (
