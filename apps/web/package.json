@@ -24,6 +24,7 @@
     "dotenv": "catalog:",
     "lucide-react": "^1.8.0",
     "next-themes": "catalog:",
+    "nitro": "^3.0.260610-beta",
     "react": "catalog:",
     "react-dom": "catalog:",
     "sonner": "^2.0.7",

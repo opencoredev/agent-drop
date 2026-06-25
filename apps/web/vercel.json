@@ -1,0 +1,5 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd ../.. && bun install",
+  "buildCommand": "cd ../../packages/backend && bunx convex deploy --cmd 'cd ../../apps/web && bunx vite build' --cmd-url-env-var-name VITE_CONVEX_URL"
+}
