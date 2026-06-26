@@ -1,5 +1,6 @@
 import { api } from "@agent-drop/backend/convex/_generated/api";
 import { buttonVariants } from "@agent-drop/ui/components/button";
+import { cn } from "@agent-drop/ui/lib/utils";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 
@@ -37,9 +38,19 @@ function ViewerPage() {
     );
   }
 
+  // For uploaded HTML, lock the page to the viewport so only the iframe content
+  // scrolls — the chrome bar stays put and the document itself never moves.
+  // Markdown is a normal scrolling document with a sticky bar.
+  const isHtml = site.kind === "html";
+
   return (
-    <div className="min-h-svh">
-      <header className="sticky top-0 z-10 border-border/60 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className={isHtml ? "flex h-svh flex-col overflow-hidden" : "min-h-svh"}>
+      <header
+        className={cn(
+          "border-border/60 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+          isHtml ? "shrink-0" : "sticky top-0 z-10",
+        )}
+      >
         <div className="mx-auto flex h-12 max-w-5xl items-center justify-between gap-4 px-4">
           <Link
             to="/"

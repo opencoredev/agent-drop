@@ -18,7 +18,7 @@ export function SiteViewer({ site }: { site: ViewerSite }) {
         src={site.contentUrl}
         title={site.title ?? site.slug}
         sandbox="allow-scripts allow-popups allow-forms allow-modals"
-        className="h-[calc(100svh-3rem)] w-full border-0 bg-white"
+        className="min-h-0 w-full flex-1 border-0 bg-white"
       />
     );
   }
