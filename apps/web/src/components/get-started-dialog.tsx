@@ -18,8 +18,8 @@ import { buildAgentPrompt } from "@/lib/agentdrop";
 import { CodeBlock } from "./code-block";
 
 const STEPS = [
-  "Saves the AgentDrop skill into your agent's skills directory.",
-  "Adds one line to your agent config so it knows when to publish.",
+  "Asks which tool to set up — Codex, Claude Code, Cursor, or several at once.",
+  "Saves the skill there and adds one line so the tool knows when to publish.",
   "From then on it ships a live URL with a single API call.",
 ];
 
@@ -45,8 +45,8 @@ export function GetStartedDialog({ children }: { children: React.ReactElement })
         <DialogHeader>
           <DialogTitle>Set up AgentDrop in your agent</DialogTitle>
           <DialogDescription>
-            Paste this prompt into your coding agent once. It installs the skill and adds a one-line
-            config — after that your agent can publish sites on its own.
+            Paste this prompt into your coding agent once. It asks which tool to set up, installs the
+            skill there, and adds a one-line config — then it can publish sites on its own.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel className="space-y-4">

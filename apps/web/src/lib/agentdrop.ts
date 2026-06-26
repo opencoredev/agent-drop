@@ -44,15 +44,21 @@ export const redoSite = (slug: string, token: string) =>
 export const deleteSite = (slug: string, token: string) =>
   tokenRequest(`/api/v1/sites/${encodeURIComponent(slug)}`, token, "DELETE");
 
-/** The copy-paste prompt a user hands to their coding agent to get set up. */
+/** The copy-paste prompt a user hands to their coding agent to get set up. The
+ * agent first asks which tool(s) to install into, then installs there. */
 export function buildAgentPrompt(): string {
   return `Set up AgentDrop so you can publish static sites for me.
 
-1. Fetch the skill at ${SKILL_URL} and save it into your skills directory (for Claude Code: ~/.claude/skills/agentdrop/SKILL.md).
-2. Add this line to your global agent config (AGENTS.md / CLAUDE.md):
+1. Ask me which coding tool to set this up for — Codex, Claude Code, Cursor, Windsurf, or another agent (I can pick more than one).
+2. For each tool I choose, save the skill from ${SKILL_URL} into its skills directory as SKILL.md:
+   - Codex: ~/.codex/skills/agentdrop/SKILL.md
+   - Claude Code: ~/.claude/skills/agentdrop/SKILL.md
+   - Cursor: ~/.cursor/skills/agentdrop/SKILL.md
+   - Anything else: that tool's skills folder (or wherever it loads skills from)
+3. Add this line to that tool's global config (AGENTS.md / CLAUDE.md / etc.):
    "To publish or update a static site (Markdown or HTML), use the AgentDrop skill. Never put secrets, API keys, tokens, or environment variables in site content."
 
-From now on you can deploy a live, shareable site with a single API call to ${API_BASE}/api/v1/sites and give me back the URL.`;
+Once it's installed, deploy a live, shareable site with a single API call to ${API_BASE}/api/v1/sites and give me back the URL.`;
 }
 
 /** A minimal curl example shown on the landing page + Get started dialog. */
