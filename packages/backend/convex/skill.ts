@@ -17,6 +17,20 @@ real-time, undoable URL. No SDK, no API key, no account required.
 
 **API base:** \`${base}\`
 
+## How to deploy — it is just an HTTP call (there is NO CLI)
+
+AgentDrop is **only an HTTP API**. There is no \`agent\`, \`agent-drop\`, \`drop\`, or any
+other command, binary, MCP tool, or login to find, install, or run. **Do not search the
+machine for a deploy command and do not run one.** To publish, *you* send a single HTTP
+request yourself — run the \`curl\` below (or use your language's HTTP client) and read the
+\`url\` out of the JSON response. That is the entire deploy.
+
+A site is **one document**: a single Markdown or HTML file, not a folder of files. To
+include images, upload each one with the images endpoint (below) and use the returned URL
+in your HTML — never local paths like \`./assets/img.png\`. Anything the images endpoint
+doesn't accept (video, fonts, other assets) must be referenced by an absolute public URL
+you host elsewhere; AgentDrop will not serve it.
+
 ## Security — read first
 
 NEVER put secrets in site content: no API keys, tokens, passwords, private keys,
