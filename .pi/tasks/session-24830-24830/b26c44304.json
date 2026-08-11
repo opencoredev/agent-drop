@@ -1,0 +1,19 @@
+{
+  "id": "b26c44304",
+  "name": "Web dev server",
+  "command": "cd /Users/leo/projects/agent-drop/apps/web && bun run dev",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-24830-24830/b26c44304.output",
+  "cwd": "/Users/leo/projects/agent-drop",
+  "startTime": 1786313990886,
+  "endTime": 1786313991605,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 26821,
+  "bytesWritten": 1528,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": false,
+  "notifyOnCompletion": false,
+  "triggerOnCompletion": true
+}

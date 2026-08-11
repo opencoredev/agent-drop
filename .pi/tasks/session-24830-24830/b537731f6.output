@@ -1,0 +1,25 @@
+(node:33699) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▌ Developing against deployment:
+▌ [Development] leodev:agent-drop:dev/leoplayz317 (dev) (dashboard: https://dashboard.convex.dev/t/leodev/agent-drop/adventurous-cheetah-326)
+▌ └─ https://adventurous-cheetah-326.convex.cloud
+- Preparing Convex functions...
+
+[36mA minor update is available for Convex[39m [2m(1.41.0 → 1.43.0)[22m
+[2mChangelog:[22m [4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog[24m
+Your Convex AI files are out of date. Run npx convex ai-files update to get the latest.
+[32m✔[39m 18:35:42 Convex functions ready! (3.19s)
+- Preparing Convex functions...
+
+[32m✔[39m 18:39:14 Convex functions ready! (9.41s)
+- Preparing Convex functions...
+
+[32m✔[39m 18:49:13 Convex functions ready! (10.41s)
+8/9/2026, 8:44:54 PM [CONVEX M(run:cleanupExpiredRuns)] [LOG] 'Cleaned up 0 expired runs'
+8/10/2026, 8:44:54 PM [CONVEX M(run:cleanupExpiredRuns)] [LOG] 'Cleaned up 0 expired runs'
+- Preparing Convex functions...
+
+[32m✔[39m 07:14:52 Convex functions ready! (7.63s)
+- Preparing Convex functions...
+
+[32m✔[39m 07:18:00 Convex functions ready! (26.96s)

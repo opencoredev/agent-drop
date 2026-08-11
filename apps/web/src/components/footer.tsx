@@ -5,10 +5,10 @@ import { Wordmark } from "./wordmark";
 
 export function Footer() {
   return (
-    <footer className="border-t border-border/60">
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row">
+    <footer className="border-border/70 border-t">
+      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-5 px-5 py-10 sm:flex-row">
         <Wordmark className="text-sm" />
-        <div className="flex items-center gap-5 text-muted-foreground text-sm">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-muted-foreground text-sm">
           <a
             href={SKILL_URL}
             target="_blank"

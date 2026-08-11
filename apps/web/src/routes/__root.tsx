@@ -32,14 +32,20 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AgentDrop — static hosting for AI agents" },
+      { title: "AgentDrop · one API call, one live URL" },
       {
         name: "description",
         content:
-          "Give your agents a simple way to host static sites. Deploy Markdown or HTML with one API call — versioned, undoable, and shareable.",
+          "Your agent POSTs Markdown or HTML and gets back a URL that already works. No account, no build step. Undo any deploy.",
       },
     ],
     links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap",
+      },
       { rel: "icon", href: "/favicon.ico", sizes: "any" },
       { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },

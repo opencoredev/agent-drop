@@ -14,6 +14,21 @@ undo is handled by `convex-timeline`, and abuse protection by `@convex-dev/rate-
 ## Quickstart (for your agent)
 
 ```bash
+npx skills add opencoredev/agent-drop
+```
+
+That installs `skills/agentdrop/SKILL.md` into whichever agents you pick. Regenerate
+that file after changing `packages/backend/convex/skill.ts`, or when pointing at a new
+deployment:
+
+```bash
+bun run skill:sync                                        # uses CONVEX_SITE_URL
+AGENTDROP_API_BASE=https://prod.convex.site bun run skill:sync
+```
+
+Or call the API directly:
+
+```bash
 curl -X POST https://<your-convex-site>/api/v1/sites \
   -H "Content-Type: application/json" \
   -d '{"kind":"markdown","title":"Hello","content":"# Hi from my agent"}'
@@ -51,16 +66,43 @@ viewer ── useQuery(getBySlug) ──▶ reactive metadata + content URL
 | `POST /api/v1/sites/:slug/images`         | Bearer | Upload an image (≤5 MB, ≤10/site)                     |
 | `DELETE /api/v1/sites/:slug`              | Bearer | Delete the site                                       |
 | `GET /agentdrop-skill.md`                 | —      | The distributable agent skill                         |
+| `POST /mcp`                               | —      | Stateless MCP server (Streamable HTTP)                |
 
 The agent-facing reference is served live at `<convex-site>/agentdrop-skill.md`.
+
+### MCP
+
+`POST /mcp` speaks MCP over Streamable HTTP, revision `2026-07-28`: no protocol-level
+session, no GET/SSE stream, and no `initialize` handshake. Every POST carries its own
+protocol version, client info, and capabilities in `params._meta`, mirrored into the
+`MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers, which the server validates
+against the body. Holding no state between calls is what lets it run on a serverless
+function with no sticky routing. Clients on `2025-03-26` through `2025-11-25` still get
+the legacy `initialize` flow, and no session id is ever minted.
+
+Tools: `deploy_site`, `update_site`, `undo_site`, `redo_site`, `get_site`, `delete_site`.
+
+Connecting a harness (the landing page renders these with the live URL filled in):
+
+```bash
+claude mcp add --transport http agentdrop <site>/mcp
+codex mcp add agentdrop --url <site>/mcp
+gemini mcp add --transport http agentdrop <site>/mcp
+code --add-mcp '{"name":"agentdrop","type":"http","url":"<site>/mcp"}'
+```
+
+Cursor (`~/.cursor/mcp.json`) has no CLI for this, so it takes JSON:
+
+```json
+{ "mcpServers": { "agentdrop": { "url": "https://<your-convex-site>/mcp" } } }
+```
 
 ## Project structure
 
 ```
 agent-drop/
 ├── apps/
-│   ├── web/         # TanStack Start front end (landing, viewer, manage, auth)
-│   └── fumadocs/    # Docs app (unchanged)
+│   └── web/         # TanStack Start front end (landing, viewer, manage, auth)
 ├── packages/
 │   ├── ui/          # COSS UI primitives (Base UI) + shared styles
 │   └── backend/     # Convex: schema, sites functions, HTTP API, R2/timeline/rate-limiter, crons

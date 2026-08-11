@@ -1,137 +1,117 @@
-import { Badge } from "@agent-drop/ui/components/badge";
-import { Button, buttonVariants } from "@agent-drop/ui/components/button";
+import { Button } from "@agent-drop/ui/components/button";
 import { createFileRoute } from "@tanstack/react-router";
-import { Clock, Globe, Undo2 } from "lucide-react";
 
-import { CodeBlock } from "@/components/code-block";
-import { ConvexBadge } from "@/components/convex-badge";
+import { CommandBlock } from "@/components/command-block";
 import { Footer } from "@/components/footer";
 import { GetStartedDialog } from "@/components/get-started-dialog";
+import { McpInstall } from "@/components/mcp-install";
 import { Nav } from "@/components/nav";
-import { ProviderLogos } from "@/components/provider-logos";
-import { DropletMark } from "@/components/wordmark";
-import { SKILL_URL, buildCurlExample } from "@/lib/agentdrop";
+import { LivePill } from "@/components/wordmark";
+import { INSTALL_COMMAND, SKILL_URL } from "@/lib/agentdrop";
 
 export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-const FEATURES = [
+const FACTS = [
   {
-    icon: Undo2,
-    title: "Versioned & undoable",
-    body: "Every deploy is a snapshot. Roll a bad edit back without re-sending the site.",
+    title: "Undo any deploy",
+    body: "Every push is a snapshot. If an edit went badly, roll it back without resending the site.",
   },
   {
-    icon: Globe,
-    title: "Live in real time",
-    body: "Viewers see updates the instant your agent pushes them — no refresh.",
+    title: "Updates go out live",
+    body: "Anyone with the page open gets the new version. Nobody has to hit refresh.",
   },
   {
-    icon: Clock,
-    title: "No account, no keys",
-    body: "Sites live 30 days anonymously. Sign in only if you want to keep one for 90.",
+    title: "No account needed",
+    body: "You get a secret edit token back instead. Sign in later only if you want to keep a site around.",
+  },
+  {
+    title: "Pages clean themselves up",
+    body: "Anonymous sites last 30 days. Claim one and it lasts 90. Nothing to cancel.",
   },
 ];
-
-/** Decorative crosshair tick at a frame corner — a small coss-style detail. */
-function Tick({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={`pointer-events-none absolute z-10 size-3 text-border ${className ?? ""}`}
-    >
-      <span className="absolute top-1/2 left-0 h-px w-full -translate-y-1/2 bg-current" />
-      <span className="absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-current" />
-    </span>
-  );
-}
 
 function Landing() {
   return (
     <>
       <Nav />
       <main>
-        {/* Hero */}
-        <section className="mx-auto max-w-3xl px-6 pt-24 pb-14 text-center sm:pt-32">
-          <Badge
-            variant="outline"
-            className="h-auto gap-2 rounded-full px-3 py-1 font-mono text-[0.65rem] text-muted-foreground uppercase tracking-[0.2em]"
-          >
-            <span className="size-1.5 rounded-full bg-foreground/40" aria-hidden />
-            Static hosting for AI agents
-          </Badge>
-
-          <h1 className="mt-7 text-balance font-semibold text-[2.5rem] leading-[1.02] tracking-[-0.03em] sm:text-6xl">
-            Give your agents a place to ship sites.
+        <section className="mx-auto max-w-3xl px-5 pt-20 pb-14 text-center sm:pt-28">
+          <h1 className="text-balance font-semibold text-[2.6rem] leading-[1.05] tracking-[-0.035em] sm:text-[3.5rem]">
+            Give your agent a URL to put things on.
           </h1>
 
-          <p className="mx-auto mt-6 max-w-lg text-pretty text-lg text-muted-foreground leading-relaxed">
-            One API call turns Markdown or HTML into a live, shareable URL — versioned, undoable, and
-            gone in 30 days unless you keep it. No account, no setup.
+          <p className="mx-auto mt-6 max-w-xl text-pretty text-lg text-muted-foreground leading-relaxed">
+            It posts Markdown or HTML. It gets back a link that already works. No account, no build
+            step, and you can undo any deploy.
           </p>
 
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mx-auto mt-10 max-w-xl text-left">
+            <div className="rounded-2xl border bg-card p-5">
+              <h2 className="font-medium text-sm">Connect your agent over MCP</h2>
+              <p className="mt-1 mb-4 text-muted-foreground text-sm">
+                A stateless server, so there is nothing to run or keep alive.
+              </p>
+              <McpInstall compact />
+            </div>
+
+            <div className="mt-3 rounded-2xl border bg-card p-5">
+              <h2 className="font-medium text-sm">Or install it as a skill</h2>
+              <p className="mt-1 mb-4 text-muted-foreground text-sm">
+                Same tools, written as instructions instead of a server.
+              </p>
+              <CommandBlock
+                command={INSTALL_COMMAND}
+                wrap
+                className="border-0 bg-muted/60 shadow-none"
+              />
+            </div>
+          </div>
+
+          <div className="mx-auto mt-12 flex max-w-md items-center gap-3 rounded-full border bg-card px-4 py-2.5 text-left">
+            <span className="shrink-0 text-muted-foreground text-sm">Your agent hands back</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-sm">
+              agentdrop.app<span className="text-muted-foreground">/3f9a8c1e</span>
+            </span>
+            <LivePill />
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-4xl px-5 pb-24">
+          <div className="grid gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-2">
+            {FACTS.map((f) => (
+              <div key={f.title} className="bg-card p-7">
+                <h2 className="font-semibold text-[1.05rem] tracking-tight">{f.title}</h2>
+                <p className="mt-2 text-muted-foreground text-sm leading-relaxed">{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-4xl px-5 pb-28">
+          <div className="rounded-2xl border bg-card px-8 py-12 text-center">
+            <h2 className="text-balance font-semibold text-2xl tracking-tight sm:text-3xl">
+              Watch it publish something.
+            </h2>
+            <p className="mx-auto mt-3 max-w-sm text-muted-foreground leading-relaxed">
+              One prompt installs agentdrop, builds a page, and hands you the link.
+            </p>
             <GetStartedDialog>
-              <Button size="lg" className="w-full sm:w-auto">
-                Get started
+              <Button size="lg" className="mt-7">
+                Copy the demo prompt
               </Button>
             </GetStartedDialog>
-            <a
-              href={SKILL_URL}
-              target="_blank"
-              rel="noreferrer noopener"
-              className={buttonVariants({ variant: "outline", size: "lg" })}
-            >
-              Read the skill
-            </a>
-          </div>
-        </section>
-
-        {/* The deploy itself — request in, live URL out */}
-        <section className="mx-auto max-w-2xl px-6 pb-16">
-          <CodeBlock text={buildCurlExample()} />
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2 text-sm">
-            <span className="text-muted-foreground">returns a URL that's already live</span>
-            <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 font-mono text-xs">
-              <DropletMark className="size-3.5" />
-              <span className="text-foreground">drop-agent.vercel.app</span>
-              <span className="text-muted-foreground">/3f9a8c1e…</span>
-              <span className="ml-0.5 inline-flex items-center gap-1.5 border-border/70 border-l pl-2 text-muted-foreground">
-                <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-                live
-              </span>
-            </span>
-          </div>
-          <div className="mt-10 flex justify-center">
-            <ConvexBadge />
-          </div>
-        </section>
-
-        {/* Trust strip */}
-        <section className="mx-auto max-w-4xl px-6 pb-16">
-          <p className="mb-7 text-center font-mono text-[0.65rem] text-muted-foreground uppercase tracking-[0.2em]">
-            Works with whatever agent you already use
-          </p>
-          <ProviderLogos />
-        </section>
-
-        {/* Three things worth knowing, in a coss-style framed grid */}
-        <section className="mx-auto max-w-4xl px-6 pb-28">
-          <div className="relative border border-border/70">
-            <Tick className="-top-1.5 -left-1.5" />
-            <Tick className="-top-1.5 -right-1.5" />
-            <Tick className="-bottom-1.5 -left-1.5" />
-            <Tick className="-right-1.5 -bottom-1.5" />
-            <div className="grid divide-y divide-border/70 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              {FEATURES.map((f) => (
-                <div key={f.title} className="p-7">
-                  <f.icon className="size-5 text-muted-foreground" strokeWidth={1.75} />
-                  <h3 className="mt-4 font-medium text-[0.95rem]">{f.title}</h3>
-                  <p className="mt-1.5 text-muted-foreground text-sm leading-relaxed">{f.body}</p>
-                </div>
-              ))}
-            </div>
+            <p className="mt-5 text-muted-foreground text-sm">
+              <a
+                href={SKILL_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline underline-offset-4 transition-colors hover:text-foreground"
+              >
+                Read the skill first
+              </a>
+            </p>
           </div>
         </section>
       </main>

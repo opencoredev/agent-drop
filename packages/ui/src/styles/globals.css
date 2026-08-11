@@ -6,94 +6,111 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Theme tokens are coss ui's own (coss.com/ui/docs/styling), verbatim: a neutral
-   palette built from Tailwind's color vars with --alpha()/color-mix() so surfaces
-   read as lifted grays rather than flat fills — the "premium grayish" coss look. */
+/* AgentDrop theme. Near-neutral surfaces with a single green accent, so the
+   green only ever means "this is live" or "press this". Everything else is
+   paper and ink. */
 :root {
-  --radius: 0.625rem;
-  --background: var(--color-white);
-  --foreground: var(--color-neutral-800);
-  --card: var(--color-white);
-  --card-foreground: var(--color-neutral-800);
-  --popover: var(--color-white);
-  --popover-foreground: var(--color-neutral-800);
-  --primary: var(--color-neutral-800);
-  --primary-foreground: var(--color-neutral-50);
-  --secondary: --alpha(var(--color-black) / 4%);
-  --secondary-foreground: var(--color-neutral-800);
-  --muted: --alpha(var(--color-black) / 4%);
-  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
-  --accent: --alpha(var(--color-black) / 4%);
-  --accent-foreground: var(--color-neutral-800);
-  --destructive: var(--color-red-500);
-  --destructive-foreground: var(--color-red-700);
-  --info: var(--color-blue-500);
-  --info-foreground: var(--color-blue-700);
-  --success: var(--color-emerald-500);
-  --success-foreground: var(--color-emerald-700);
-  --warning: var(--color-amber-500);
-  --warning-foreground: var(--color-amber-700);
-  --border: --alpha(var(--color-black) / 8%);
-  --input: --alpha(var(--color-black) / 10%);
-  --ring: var(--color-neutral-400);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: var(--color-neutral-50);
-  --sidebar-foreground: color-mix(in srgb, var(--color-neutral-800) 64%, var(--sidebar));
-  --sidebar-primary: var(--color-neutral-800);
-  --sidebar-primary-foreground: var(--color-neutral-50);
-  --sidebar-accent: --alpha(var(--color-black) / 4%);
-  --sidebar-accent-foreground: var(--color-neutral-800);
-  --sidebar-border: --alpha(var(--color-black) / 6%);
-  --sidebar-ring: var(--color-neutral-400);
+  --background: oklch(0.994 0 0);
+  --foreground: oklch(0.14 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.14 0 0);
+  --popover: oklch(0.999 0 0);
+  --popover-foreground: oklch(0.14 0 0);
+  --primary: oklch(0.598 0.156 149.6);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.9702 0 0);
+  --secondary-foreground: oklch(0.14 0 0);
+  --muted: oklch(0.9702 0 0);
+  --muted-foreground: oklch(0.47 0 0);
+  --accent: oklch(0.964 0.025 150);
+  --accent-foreground: oklch(0.49 0.133 150);
+  --destructive: oklch(0.629 0.1902 23.0704);
+  --destructive-foreground: oklch(0.53 0.1902 23.0704);
+  --info: oklch(0.6231 0.188 259.8145);
+  --info-foreground: oklch(0.5 0.19 259.8145);
+  --success: oklch(0.598 0.156 149.6);
+  --success-foreground: oklch(0.49 0.133 150);
+  --warning: oklch(0.7686 0.1647 70.0804);
+  --warning-foreground: oklch(0.554 0.135 66);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.908 0 0);
+  --ring: oklch(0.598 0.156 149.6);
+  --chart-1: oklch(0.598 0.156 149.6);
+  --chart-2: oklch(0.728 0.142 152);
+  --chart-3: oklch(0.842 0.098 155);
+  --chart-4: oklch(0.5 0.12 175);
+  --chart-5: oklch(0.7686 0.1647 70.0804);
+  --sidebar: oklch(0.979 0 0);
+  --sidebar-foreground: oklch(0.14 0 0);
+  --sidebar-primary: oklch(0.598 0.156 149.6);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.964 0.025 150);
+  --sidebar-accent-foreground: oklch(0.49 0.133 150);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.598 0.156 149.6);
+  --radius: 1rem;
+  --shadow-2xs: 0 1px 3px 0 oklch(0 0 0 / 0.04);
+  --shadow-xs: 0 1px 3px 0 oklch(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.08);
+  --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.08);
+  --shadow-md: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 2px 4px -1px oklch(0 0 0 / 0.08);
+  --shadow-lg: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 4px 6px -1px oklch(0 0 0 / 0.08);
+  --shadow-xl: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 8px 10px -1px oklch(0 0 0 / 0.08);
+  --shadow-2xl: 0 1px 3px 0 oklch(0 0 0 / 0.2);
 }
 
 .dark {
-  --background: color-mix(in srgb, var(--color-neutral-950) 95%, var(--color-white));
-  --foreground: var(--color-neutral-100);
-  --card: color-mix(in srgb, var(--background) 98%, var(--color-white));
-  --card-foreground: var(--color-neutral-100);
-  --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
-  --popover-foreground: var(--color-neutral-100);
-  --primary: var(--color-neutral-100);
-  --primary-foreground: var(--color-neutral-800);
-  --secondary: --alpha(var(--color-white) / 4%);
-  --secondary-foreground: var(--color-neutral-100);
-  --muted: --alpha(var(--color-white) / 4%);
-  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-white));
-  --accent: --alpha(var(--color-white) / 4%);
-  --accent-foreground: var(--color-neutral-100);
-  --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
-  --destructive-foreground: var(--color-red-400);
-  --info: var(--color-blue-500);
-  --info-foreground: var(--color-blue-400);
-  --success: var(--color-emerald-500);
-  --success-foreground: var(--color-emerald-400);
-  --warning: var(--color-amber-500);
-  --warning-foreground: var(--color-amber-400);
-  --border: --alpha(var(--color-white) / 6%);
-  --input: --alpha(var(--color-white) / 8%);
-  --ring: var(--color-neutral-500);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
-  --sidebar-foreground: color-mix(in srgb, var(--color-neutral-100) 64%, var(--sidebar));
-  --sidebar-primary: var(--color-neutral-100);
-  --sidebar-primary-foreground: var(--color-neutral-800);
-  --sidebar-accent: --alpha(var(--color-white) / 4%);
-  --sidebar-accent-foreground: var(--color-neutral-100);
-  --sidebar-border: --alpha(var(--color-white) / 5%);
-  --sidebar-ring: var(--color-neutral-400);
+  --background: oklch(0.1448 0 0);
+  --foreground: oklch(0.9551 0 0);
+  --card: oklch(0.188 0 0);
+  --card-foreground: oklch(0.9551 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.9551 0 0);
+  --primary: oklch(0.696 0.172 150.5);
+  --primary-foreground: oklch(0.1448 0 0);
+  --secondary: oklch(0.257 0 0);
+  --secondary-foreground: oklch(0.9551 0 0);
+  --muted: oklch(0.257 0 0);
+  --muted-foreground: oklch(0.69 0 0);
+  --accent: oklch(0.308 0.064 152);
+  --accent-foreground: oklch(0.92 0.06 150);
+  --destructive: oklch(0.7043 0.1781 22.7836);
+  --destructive-foreground: oklch(0.78 0.14 22.7836);
+  --info: oklch(0.71 0.14 259.8145);
+  --info-foreground: oklch(0.79 0.11 259.8145);
+  --success: oklch(0.696 0.172 150.5);
+  --success-foreground: oklch(0.82 0.13 152);
+  --warning: oklch(0.82 0.15 78);
+  --warning-foreground: oklch(0.87 0.12 84);
+  --border: oklch(0.265 0 0);
+  --input: oklch(0.32 0 0);
+  --ring: oklch(0.696 0.172 150.5);
+  --chart-1: oklch(0.696 0.172 150.5);
+  --chart-2: oklch(0.79 0.14 154);
+  --chart-3: oklch(0.54 0.13 148);
+  --chart-4: oklch(0.66 0.11 190);
+  --chart-5: oklch(0.82 0.15 78);
+  --sidebar: oklch(0.188 0 0);
+  --sidebar-foreground: oklch(0.9551 0 0);
+  --sidebar-primary: oklch(0.696 0.172 150.5);
+  --sidebar-primary-foreground: oklch(0.1448 0 0);
+  --sidebar-accent: oklch(0.308 0.064 152);
+  --sidebar-accent-foreground: oklch(0.92 0.06 150);
+  --sidebar-border: oklch(0.265 0 0);
+  --sidebar-ring: oklch(0.696 0.172 150.5);
+  --shadow-2xs: 0 1px 3px 0 oklch(0 0 0 / 0.12);
+  --shadow-xs: 0 1px 3px 0 oklch(0 0 0 / 0.16);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.24), 0 1px 2px -1px oklch(0 0 0 / 0.24);
+  --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.24), 0 1px 2px -1px oklch(0 0 0 / 0.24);
+  --shadow-md: 0 1px 3px 0 oklch(0 0 0 / 0.24), 0 2px 4px -1px oklch(0 0 0 / 0.24);
+  --shadow-lg: 0 1px 3px 0 oklch(0 0 0 / 0.24), 0 4px 6px -1px oklch(0 0 0 / 0.24);
+  --shadow-xl: 0 1px 3px 0 oklch(0 0 0 / 0.24), 0 8px 10px -1px oklch(0 0 0 / 0.24);
+  --shadow-2xl: 0 1px 3px 0 oklch(0 0 0 / 0.5);
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -125,8 +142,8 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
@@ -139,6 +156,157 @@
   --color-info-foreground: var(--info-foreground);
   --color-info: var(--info);
   --color-destructive-foreground: var(--destructive-foreground);
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+}
+
+/* Typography for a published Markdown page. Deliberately unlayered: the Markdown
+   renderer styles its output with Tailwind utilities, and unlayered rules beat every
+   @layer, so these win without a single !important. The doubled class keeps
+   specificity above the renderer's own stylesheet. */
+.doc.doc {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--foreground);
+}
+.doc.doc > * + * {
+  margin-top: 1.25em;
+}
+.doc.doc :is(h1, h2, h3, h4) {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.doc.doc h1 {
+  font-size: 2.4rem;
+  letter-spacing: -0.035em;
+}
+.doc.doc h2 {
+  font-size: 1.6rem;
+}
+.doc.doc h3 {
+  font-size: 1.25rem;
+}
+.doc.doc h4 {
+  font-size: 1.0625rem;
+}
+.doc.doc > :first-child {
+  margin-top: 0;
+}
+.doc.doc :is(h2, h3, h4):not(:first-child) {
+  margin-top: 2.5em;
+}
+.doc.doc h1 + :is(h2, h3) {
+  margin-top: 1.5em;
+}
+.doc.doc :is(ul, ol) {
+  padding-left: 1.4em;
+}
+.doc.doc ul {
+  list-style: disc;
+}
+.doc.doc ol {
+  list-style: decimal;
+}
+.doc.doc li + li {
+  margin-top: 0.45em;
+}
+.doc.doc li::marker {
+  color: var(--muted-foreground);
+}
+.doc.doc a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--primary) 60%, transparent);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+.doc.doc a:hover {
+  text-decoration-color: var(--primary);
+}
+.doc.doc strong {
+  font-weight: 600;
+}
+.doc.doc blockquote {
+  border-left: 2px solid var(--primary);
+  padding-left: 1.15em;
+  color: var(--muted-foreground);
+}
+.doc.doc :not(pre) > code {
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0.15em 0.4em;
+  font-size: 0.875em;
+}
+.doc.doc pre {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.1em 1.25em;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+.doc.doc hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin-block: 3em;
+}
+.doc.doc img {
+  border-radius: var(--radius-md);
+}
+.doc.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+/* The Markdown renderer wraps code blocks and tables in a second frame with a
+   language label and a download/copy toolbar. On a published page that chrome
+   is noise, so flatten the outer frame and keep the inner box. */
+.doc.doc div:has(> div > pre),
+.doc.doc div:has(> div > table) {
+  margin-block: 1.25em;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  gap: 0;
+}
+.doc.doc div:has(> div > pre) > div:not(:has(pre)),
+.doc.doc div:has(> div > table) > div:not(:has(table)) {
+  display: none;
+}
+.doc.doc div:has(> div > pre) > div:has(pre) {
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+.doc.doc div:has(> div > table) > div:has(table) {
+  border-radius: var(--radius-md);
+}
+.doc.doc div:has(> div > pre) pre {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.doc.doc :is(th, td) {
+  border-bottom: 1px solid var(--border);
+  padding: 0.7em 1em 0.7em 0;
+  text-align: left;
+}
+.doc.doc th {
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 @layer base {
@@ -150,5 +318,6 @@
   }
   html {
     @apply font-sans;
+    -webkit-font-smoothing: antialiased;
   }
 }

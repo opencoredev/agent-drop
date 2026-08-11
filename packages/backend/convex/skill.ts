@@ -31,6 +31,29 @@ in your HTML — never local paths like \`./assets/img.png\`. Anything the image
 doesn't accept (video, fonts, other assets) must be referenced by an absolute public URL
 you host elsewhere; AgentDrop will not serve it.
 
+## If you speak MCP instead
+
+There is a stateless MCP server at \`${base}/mcp\` (Streamable HTTP, revision
+2026-07-28: no session, no SSE stream, POST only). Add it to your client config and
+use the tools \`deploy_site\`, \`update_site\`, \`undo_site\`, \`redo_site\`, \`get_site\`,
+and \`delete_site\` instead of the curl calls below. Older clients that still send
+\`initialize\` are answered too.
+
+Connect the harness you are running in:
+
+\`\`\`bash
+claude mcp add --transport http agentdrop ${base}/mcp     # Claude Code
+codex mcp add agentdrop --url ${base}/mcp                  # Codex
+gemini mcp add --transport http agentdrop ${base}/mcp      # Gemini CLI
+code --add-mcp '{"name":"agentdrop","type":"http","url":"${base}/mcp"}'  # VS Code
+\`\`\`
+
+Cursor (\`~/.cursor/mcp.json\`) and anything else that edits JSON:
+
+\`\`\`json
+{ "mcpServers": { "agentdrop": { "url": "${base}/mcp" } } }
+\`\`\`
+
 ## Security — read first
 
 NEVER put secrets in site content: no API keys, tokens, passwords, private keys,

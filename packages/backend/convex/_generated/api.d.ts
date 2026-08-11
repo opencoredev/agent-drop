@@ -13,6 +13,7 @@ import type * as crons from "../crons.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as lib from "../lib.js";
+import type * as mcp from "../mcp.js";
 import type * as r2 from "../r2.js";
 import type * as rateLimiter from "../rateLimiter.js";
 import type * as sites from "../sites.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   healthCheck: typeof healthCheck;
   http: typeof http;
   lib: typeof lib;
+  mcp: typeof mcp;
   r2: typeof r2;
   rateLimiter: typeof rateLimiter;
   sites: typeof sites;

@@ -7,72 +7,61 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@agent-drop/ui/components/dialog";
-import { Button } from "@agent-drop/ui/components/button";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@agent-drop/ui/components/tabs";
 import type React from "react";
-import { useState } from "react";
-import { toast } from "sonner";
 
-import { buildAgentPrompt } from "@/lib/agentdrop";
+import { INSTALL_COMMAND, buildDemoPrompt } from "@/lib/agentdrop";
 
 import { CodeBlock } from "./code-block";
-
-const STEPS = [
-  "Asks which tool to set up — Codex, Claude Code, Cursor, or several at once.",
-  "Saves the skill there and adds one line so the tool knows when to publish.",
-  "From then on it ships a live URL with a single API call.",
-];
+import { CommandBlock } from "./command-block";
+import { McpInstall } from "./mcp-install";
 
 export function GetStartedDialog({ children }: { children: React.ReactElement }) {
-  const prompt = buildAgentPrompt();
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-      toast.success("Agent prompt copied — paste it into your agent");
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      toast.error("Couldn't copy — select the text and copy manually.");
-    }
-  }
-
   return (
     <Dialog>
       <DialogTrigger render={children} />
-      <DialogPopup className="max-w-xl">
+      <DialogPopup className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Set up AgentDrop in your agent</DialogTitle>
-          <DialogDescription>
-            Paste this prompt into your coding agent once. It asks which tool to set up, installs the
-            skill there, and adds a one-line config — then it can publish sites on its own.
-          </DialogDescription>
+          <DialogTitle>Set up agentdrop</DialogTitle>
+          <DialogDescription>Pick whichever one your agent already speaks.</DialogDescription>
         </DialogHeader>
-        <DialogPanel className="space-y-4">
-          <div className="space-y-2">
-            <span className="font-mono text-[0.65rem] text-muted-foreground uppercase tracking-[0.18em]">
-              Agent prompt
-            </span>
-            <CodeBlock text={prompt} language="prompt" />
-          </div>
-          <Button size="lg" className="w-full" onClick={copy}>
-            {copied ? <CheckIcon /> : <CopyIcon />}
-            {copied ? "Copied" : "Copy agent prompt"}
-          </Button>
-          <ol className="space-y-2 text-muted-foreground text-sm">
-            {STEPS.map((step, i) => (
-              <li key={step} className="flex gap-3">
-                <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary font-medium text-foreground text-xs">
-                  {i + 1}
-                </span>
-                <span className="leading-relaxed">{step}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="text-muted-foreground text-xs">
-            Works with Claude Code, Cursor, Codex, and any agent that can run a shell or HTTP request.
-          </p>
+        <DialogPanel>
+          <Tabs defaultValue="skill">
+            <TabsList className="w-full">
+              <TabsTrigger value="skill" className="flex-1">
+                Skill
+              </TabsTrigger>
+              <TabsTrigger value="mcp" className="flex-1">
+                MCP
+              </TabsTrigger>
+              <TabsTrigger value="demo" className="flex-1">
+                Demo
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="skill" className="mt-5 space-y-3">
+              <CommandBlock command={INSTALL_COMMAND} />
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Run it where your agent lives. The CLI asks which tools to install into and writes
+                the skill there.
+              </p>
+            </TabsContent>
+
+            <TabsContent value="mcp" className="mt-5 space-y-3">
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                A stateless Streamable HTTP server: no session, no process to run, no key.
+              </p>
+              <McpInstall />
+            </TabsContent>
+
+            <TabsContent value="demo" className="mt-5 space-y-3">
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Paste this into your agent. It installs agentdrop, publishes a real page, and hands
+                you the link.
+              </p>
+              <CodeBlock text={buildDemoPrompt()} language="prompt" compact />
+            </TabsContent>
+          </Tabs>
         </DialogPanel>
       </DialogPopup>
     </Dialog>

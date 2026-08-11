@@ -6,6 +6,96 @@ export const API_BASE = env.VITE_CONVEX_SITE_URL;
 /** Canonical URL of the distributable agent skill (served by the backend). */
 export const SKILL_URL = `${API_BASE}/agentdrop-skill.md`;
 
+/** The repo that skills.sh installs from. */
+export const SKILL_REPO = "opencoredev/agent-drop";
+
+/** One-line install, handled by the skills CLI (skills.sh). */
+export const INSTALL_COMMAND = `npx skills add ${SKILL_REPO}`;
+
+/** Stateless MCP endpoint (Streamable HTTP). Paste into any MCP client. */
+export const MCP_URL = `${API_BASE}/mcp`;
+
+/** What most MCP clients want pasted into their config file. */
+export function buildMcpConfig(): string {
+  return JSON.stringify({ mcpServers: { agentdrop: { url: MCP_URL } } }, null, 2);
+}
+
+export type McpTarget = {
+  id: string;
+  name: string;
+  /** Brand mark under /logos. `dark` is the light-ink version for dark mode. */
+  logo: { light: string; dark?: string };
+  /** A one-line command, or the config file to edit when the tool has no CLI. */
+  install: { kind: "command"; value: string } | { kind: "config"; path: string; value: string };
+};
+
+/** How to point each agent at the MCP endpoint. Commands are taken from each
+ * tool's own CLI help or docs, not guessed. */
+export const MCP_TARGETS: McpTarget[] = [
+  {
+    id: "claude-code",
+    name: "Claude Code",
+    logo: { light: "/logos/claude.svg" },
+    install: { kind: "command", value: `claude mcp add --transport http agentdrop ${MCP_URL}` },
+  },
+  {
+    id: "codex",
+    name: "Codex",
+    logo: { light: "/logos/openai-light.svg", dark: "/logos/openai-dark.svg" },
+    install: { kind: "command", value: `codex mcp add agentdrop --url ${MCP_URL}` },
+  },
+  {
+    id: "gemini",
+    name: "Gemini CLI",
+    logo: { light: "/logos/gemini.svg" },
+    install: { kind: "command", value: `gemini mcp add --transport http agentdrop ${MCP_URL}` },
+  },
+  {
+    id: "copilot",
+    name: "VS Code",
+    logo: { light: "/logos/vscode.svg" },
+    install: {
+      kind: "command",
+      value: `code --add-mcp '{"name":"agentdrop","type":"http","url":"${MCP_URL}"}'`,
+    },
+  },
+  {
+    id: "cursor",
+    name: "Cursor",
+    logo: { light: "/logos/cursor-light.svg", dark: "/logos/cursor-dark.svg" },
+    install: {
+      kind: "config",
+      path: "~/.cursor/mcp.json",
+      value: JSON.stringify({ mcpServers: { agentdrop: { url: MCP_URL } } }, null, 2),
+    },
+  },
+  {
+    id: "opencode",
+    name: "opencode",
+    logo: { light: "/logos/opencode-light.svg", dark: "/logos/opencode-dark.svg" },
+    install: {
+      kind: "config",
+      path: "opencode.json",
+      value: JSON.stringify(
+        { mcp: { agentdrop: { type: "remote", url: MCP_URL, enabled: true } } },
+        null,
+        2,
+      ),
+    },
+  },
+];
+
+/** A prompt that proves the whole thing works in one go: install, publish a
+ * real page, hand back the link. */
+export function buildDemoPrompt(): string {
+  return `Install agentdrop and show me it works.
+
+1. Run: ${INSTALL_COMMAND}
+2. Build a single-page HTML summary of what this project does, with real content, not lorem ipsum.
+3. Publish it with agentdrop and give me the URL and the manage link.
+4. Keep the editToken so you can update the page when I ask.`;
+}
+
 /** Origin of the web app, used to build viewer/manage links shown to humans. */
 export function appOrigin(): string {
   if (typeof window !== "undefined") return window.location.origin;
@@ -44,31 +134,21 @@ export const redoSite = (slug: string, token: string) =>
 export const deleteSite = (slug: string, token: string) =>
   tokenRequest(`/api/v1/sites/${encodeURIComponent(slug)}`, token, "DELETE");
 
-/** The copy-paste prompt a user hands to their coding agent to get set up. The
- * agent first asks which tool(s) to install into, then installs there. */
+/** Fallback for anyone who cannot run the skills CLI: paste this into the agent
+ * and it fetches the same skill by hand. */
 export function buildAgentPrompt(): string {
-  return `Set up AgentDrop so you can publish static sites for me.
+  return `Install the agentdrop skill for yourself.
 
-1. Ask me which coding tool to set this up for — Codex, Claude Code, Cursor, Windsurf, or another agent (I can pick more than one).
-2. For each tool I choose, save the skill from ${SKILL_URL} into its skills directory as SKILL.md:
-   - Codex: ~/.codex/skills/agentdrop/SKILL.md
-   - Claude Code: ~/.claude/skills/agentdrop/SKILL.md
-   - Cursor: ~/.cursor/skills/agentdrop/SKILL.md
-   - Anything else: that tool's skills folder (or wherever it loads skills from)
-3. Add this line to that tool's global config (AGENTS.md / CLAUDE.md / etc.):
-   "To publish or update a static site (Markdown or HTML), use the AgentDrop skill. Never put secrets, API keys, tokens, or environment variables in site content."
+Run: ${INSTALL_COMMAND}
 
-Once it's installed, deploy a live, shareable site with a single API call to ${API_BASE}/api/v1/sites and give me back the URL.`;
+If that command is not available, save ${SKILL_URL} into your skills directory as agentdrop/SKILL.md instead.
+
+Then publish a test page with it and give me the URL.`;
 }
 
-/** A minimal curl example shown on the landing page + Get started dialog. */
+/** The one call the whole product is built around, shown on the landing page. */
 export function buildCurlExample(): string {
   return `curl -X POST ${API_BASE}/api/v1/sites \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "kind": "markdown",
-    "title": "Release notes",
-    "content": "# Hello from my agent\\n\\nDeployed with one API call."
-  }'
-# → { "url": "...", "manageUrl": "...", "editToken": "..." }`;
+  -d '{ "kind": "markdown", "content": "# Hello" }'`;
 }

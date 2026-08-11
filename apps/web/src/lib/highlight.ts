@@ -57,6 +57,13 @@ function pushWithUrls(tokens: Token[], kind: TokenKind, value: string): void {
 }
 
 const BASH_KEYWORDS = new Set([
+  // Agent CLIs, so the leading binary in an MCP install line reads as a command.
+  "claude",
+  "codex",
+  "gemini",
+  "code",
+  "opencode",
+  "cursor-agent",
   "curl",
   "sudo",
   "cd",

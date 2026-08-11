@@ -7,6 +7,7 @@ import { authComponent, createAuth } from "./auth";
 import { LIMITS, RETENTION, generateEditToken, scanForSecrets, sha256Hex } from "./lib";
 import { r2 } from "./r2";
 import { rateLimiter } from "./rateLimiter";
+import { type ToolResult, type ToolRunner, handleMcpMessage, readMcpHeaders } from "./mcp";
 import { skillMarkdown } from "./skill";
 
 const http = httpRouter();
@@ -23,6 +24,16 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Max-Age": "86400",
+};
+
+// MCP mirrors body fields into headers, so browser-based clients need them on
+// the allow list, and need to read the ones we echo back.
+const MCP_CORS: Record<string, string> = {
+  ...CORS,
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Last-Event-ID",
+  "Access-Control-Expose-Headers": "MCP-Protocol-Version",
 };
 
 function json(data: unknown, status = 200, extra: Record<string, string> = {}): Response {
@@ -122,27 +133,33 @@ async function uniqueSlug(ctx: ActionCtx): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/v1/sites — deploy a new site
+// Site operations
+//
+// The REST routes and the MCP tools are two front doors onto the same work, so
+// each operation lives here once and returns plain data or `{ error, status }`.
 // ---------------------------------------------------------------------------
 
-const createSite = httpAction(async (ctx, request) => {
-  const limit = await rateLimiter.limit(ctx, "createSite", { key: clientIp(request) });
-  if (!limit.ok) {
-    return fail(429, "Rate limit exceeded. Try again later.", retryHeader(limit.retryAfter));
-  }
+type OpError = { error: string; status: number };
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return fail(400, "Request body must be valid JSON.");
+function isOpError(value: unknown): value is OpError {
+  return typeof value === "object" && value !== null && "error" in value;
+}
+
+async function authorize(ctx: ActionCtx, slug: string, token: string | null) {
+  if (!token) return null;
+  return await ctx.runQuery(internal.sites.authBySlug, { slug, tokenHash: await sha256Hex(token) });
+}
+
+async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
+  const limit = await rateLimiter.limit(ctx, "createSite", { key: rateKey });
+  if (!limit.ok) {
+    return { error: "Rate limit exceeded. Try again later.", status: 429, retry: limit.retryAfter };
   }
 
   const parsed = parseContent(body);
-  if ("error" in parsed) return fail(parsed.status, parsed.error);
+  if ("error" in parsed) return parsed;
 
   const slug = await uniqueSlug(ctx);
-
   const editToken = generateEditToken();
   const editTokenHash = await sha256Hex(editToken);
   const key = versionKey(slug, parsed.kind);
@@ -164,22 +181,93 @@ const createSite = httpAction(async (ctx, request) => {
       expiresAt,
     });
   } catch {
-    return fail(409, "Slug just became unavailable — please retry.");
+    return { error: "Slug just became unavailable — please retry.", status: 409 };
   }
 
   const app = appBase();
-  return json(
-    {
-      slug,
-      url: `${app}/${slug}`,
-      manageUrl: `${app}/manage/${slug}?t=${editToken}`,
-      editToken,
-      kind: parsed.kind,
-      expiresAt,
-      retentionDays: 30,
-    },
-    201,
-  );
+  return {
+    slug,
+    url: `${app}/${slug}`,
+    manageUrl: `${app}/manage/${slug}?t=${editToken}`,
+    editToken,
+    kind: parsed.kind,
+    expiresAt,
+    retentionDays: 30,
+  };
+}
+
+async function opUpdate(ctx: ActionCtx, slug: string, token: string | null, body: unknown) {
+  const auth = await authorize(ctx, slug, token);
+  if (!auth) return { error: "Invalid edit token for this site.", status: 403 };
+
+  const limit = await rateLimiter.limit(ctx, "updateSite", { key: auth.scope });
+  if (!limit.ok) {
+    return { error: "Rate limit exceeded. Try again later.", status: 429, retry: limit.retryAfter };
+  }
+
+  const parsed = parseContent(body);
+  if ("error" in parsed) return parsed;
+
+  const key = versionKey(slug, parsed.kind);
+  await r2.store(ctx, parsed.bytes, { key, type: parsed.contentType, cacheControl: VERSION_CACHE });
+  await ctx.runMutation(internal.sites.recordUpdate, {
+    slug,
+    kind: parsed.kind,
+    title: parsed.title,
+    key,
+    contentType: parsed.contentType,
+    byteSize: parsed.bytes.byteLength,
+  });
+  const status = await ctx.runQuery(internal.sites.statusBySlug, { slug });
+  return { ok: true, ...status };
+}
+
+async function opHistory(
+  ctx: ActionCtx,
+  slug: string,
+  token: string | null,
+  direction: "undo" | "redo",
+) {
+  const auth = await authorize(ctx, slug, token);
+  if (!auth) return { error: "Invalid edit token for this site.", status: 403 };
+  const applied =
+    direction === "undo"
+      ? await ctx.runMutation(internal.sites.applyUndo, { slug })
+      : await ctx.runMutation(internal.sites.applyRedo, { slug });
+  return { ok: true, ...applied };
+}
+
+async function opStatus(ctx: ActionCtx, slug: string) {
+  const status = await ctx.runQuery(internal.sites.statusBySlug, { slug });
+  if (!status) return { error: "Site not found.", status: 404 };
+  return status;
+}
+
+async function opDelete(ctx: ActionCtx, slug: string, token: string | null) {
+  const auth = await authorize(ctx, slug, token);
+  if (!auth) return { error: "Invalid edit token for this site.", status: 403 };
+  await ctx.runMutation(internal.sites.purgeBySlug, { slug });
+  return { ok: true, deleted: slug };
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/sites — deploy a new site
+// ---------------------------------------------------------------------------
+
+const createSite = httpAction(async (ctx, request) => {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return fail(400, "Request body must be valid JSON.");
+  }
+
+  const out = await opDeploy(ctx, clientIp(request), body);
+  if (isOpError(out)) {
+    const retry = (out as { retry?: number }).retry;
+    return fail(out.status, out.error, retry ? retryHeader(retry) : {});
+  }
+  return json(out, 201);
 });
 
 // ---------------------------------------------------------------------------
@@ -231,8 +319,8 @@ const sitesGet = httpAction(async (ctx, request) => {
   }
 
   if (!sub) {
-    const status = await ctx.runQuery(internal.sites.statusBySlug, { slug });
-    if (!status) return fail(404, "Site not found.");
+    const status = await opStatus(ctx, slug);
+    if (isOpError(status)) return fail(status.status, status.error);
     return json(status);
   }
 
@@ -243,13 +331,8 @@ const sitesPut = httpAction(async (ctx, request) => {
   const { slug, sub } = parsePath(request, SITES_PREFIX);
   if (!slug || sub) return fail(404, "Not found.");
 
-  const gate = await requireSite(ctx, request, slug);
-  if ("error" in gate) return gate.error;
-
-  const limit = await rateLimiter.limit(ctx, "updateSite", { key: gate.auth.scope });
-  if (!limit.ok) {
-    return fail(429, "Rate limit exceeded. Try again later.", retryHeader(limit.retryAfter));
-  }
+  const token = bearerToken(request);
+  if (!token) return fail(401, "Missing 'Authorization: Bearer <editToken>' header.");
 
   let body: unknown;
   try {
@@ -257,21 +340,13 @@ const sitesPut = httpAction(async (ctx, request) => {
   } catch {
     return fail(400, "Request body must be valid JSON.");
   }
-  const parsed = parseContent(body);
-  if ("error" in parsed) return fail(parsed.status, parsed.error);
 
-  const key = versionKey(slug, parsed.kind);
-  await r2.store(ctx, parsed.bytes, { key, type: parsed.contentType, cacheControl: VERSION_CACHE });
-  await ctx.runMutation(internal.sites.recordUpdate, {
-    slug,
-    kind: parsed.kind,
-    title: parsed.title,
-    key,
-    contentType: parsed.contentType,
-    byteSize: parsed.bytes.byteLength,
-  });
-  const status = await ctx.runQuery(internal.sites.statusBySlug, { slug });
-  return json({ ok: true, ...status });
+  const out = await opUpdate(ctx, slug, token, body);
+  if (isOpError(out)) {
+    const retry = (out as { retry?: number }).retry;
+    return fail(out.status, out.error, retry ? retryHeader(retry) : {});
+  }
+  return json(out);
 });
 
 const sitesPost = httpAction(async (ctx, request) => {
@@ -281,13 +356,10 @@ const sitesPost = httpAction(async (ctx, request) => {
   const gate = await requireSite(ctx, request, slug);
   if ("error" in gate) return gate.error;
 
-  if (sub === "undo") {
-    const result = await ctx.runMutation(internal.sites.applyUndo, { slug });
-    return json({ ok: true, ...result });
-  }
-  if (sub === "redo") {
-    const result = await ctx.runMutation(internal.sites.applyRedo, { slug });
-    return json({ ok: true, ...result });
+  if (sub === "undo" || sub === "redo") {
+    const out = await opHistory(ctx, slug, bearerToken(request), sub);
+    if (isOpError(out)) return fail(out.status, out.error);
+    return json(out);
   }
   if (sub === "images") {
     const limit = await rateLimiter.limit(ctx, "uploadImage", { key: gate.auth.scope });
@@ -354,10 +426,11 @@ const sitesPost = httpAction(async (ctx, request) => {
 const sitesDelete = httpAction(async (ctx, request) => {
   const { slug, sub } = parsePath(request, SITES_PREFIX);
   if (!slug || sub) return fail(404, "Not found.");
-  const gate = await requireSite(ctx, request, slug);
-  if ("error" in gate) return gate.error;
-  await ctx.runMutation(internal.sites.purgeBySlug, { slug });
-  return json({ ok: true, deleted: slug });
+  const token = bearerToken(request);
+  if (!token) return fail(401, "Missing 'Authorization: Bearer <editToken>' header.");
+  const out = await opDelete(ctx, slug, token);
+  if (isOpError(out)) return fail(out.status, out.error);
+  return json(out);
 });
 
 // ---------------------------------------------------------------------------
@@ -405,7 +478,86 @@ const skill = httpAction(async () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// POST /mcp — stateless MCP server (Streamable HTTP)
+// ---------------------------------------------------------------------------
+
+function toolText(value: unknown): ToolResult {
+  return { text: JSON.stringify(value, null, 2) };
+}
+
+function toolFailure(value: OpError): ToolResult {
+  return { text: value.error, isError: true };
+}
+
+function mcpRunner(ctx: ActionCtx, request: Request): ToolRunner {
+  const ip = clientIp(request);
+
+  return async (name, args) => {
+    const slug = typeof args.slug === "string" ? args.slug : "";
+    const token = typeof args.editToken === "string" ? args.editToken : null;
+
+    switch (name) {
+      case "deploy_site": {
+        const out = await opDeploy(ctx, ip, args);
+        return isOpError(out) ? toolFailure(out) : toolText(out);
+      }
+      case "update_site": {
+        const out = await opUpdate(ctx, slug, token, args);
+        return isOpError(out) ? toolFailure(out) : toolText(out);
+      }
+      case "undo_site":
+      case "redo_site": {
+        const out = await opHistory(ctx, slug, token, name === "undo_site" ? "undo" : "redo");
+        return isOpError(out) ? toolFailure(out) : toolText(out);
+      }
+      case "get_site": {
+        const out = await opStatus(ctx, slug);
+        return isOpError(out) ? toolFailure(out) : toolText(out);
+      }
+      case "delete_site": {
+        const out = await opDelete(ctx, slug, token);
+        return isOpError(out) ? toolFailure(out) : toolText(out);
+      }
+      default:
+        return { text: `Unknown tool: ${name}`, isError: true };
+    }
+  };
+}
+
+const mcpPost = httpAction(async (ctx, request) => {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400);
+  }
+
+  const reply = await handleMcpMessage(body, readMcpHeaders(request), mcpRunner(ctx, request));
+  if (reply.body === null) return new Response(null, { status: reply.status, headers: MCP_CORS });
+  return json(reply.body, reply.status, MCP_CORS);
+});
+
+// Sessions and the standalone SSE stream are gone in 2026-07-28, so the only
+// verb this endpoint answers is POST.
+const mcpGone = httpAction(
+  async () =>
+    new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32601, message: "This MCP endpoint is stateless and accepts POST only." },
+      }),
+      {
+        status: 405,
+        headers: { "Content-Type": "application/json", Allow: "POST, OPTIONS", ...MCP_CORS },
+      },
+    ),
+);
+
 const preflight = httpAction(async () => new Response(null, { status: 204, headers: CORS }));
+
+const mcpPreflight = httpAction(async () => new Response(null, { status: 204, headers: MCP_CORS }));
 
 // ---------------------------------------------------------------------------
 // Route table
@@ -427,5 +579,10 @@ http.route({ pathPrefix: "/s/", method: "GET", handler: shortRedirect });
 
 http.route({ path: "/agentdrop-skill.md", method: "GET", handler: skill });
 http.route({ path: "/agentdrop-skill.md", method: "OPTIONS", handler: preflight });
+
+http.route({ path: "/mcp", method: "POST", handler: mcpPost });
+http.route({ path: "/mcp", method: "GET", handler: mcpGone });
+http.route({ path: "/mcp", method: "DELETE", handler: mcpGone });
+http.route({ path: "/mcp", method: "OPTIONS", handler: mcpPreflight });
 
 export default http;

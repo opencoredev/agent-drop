@@ -45,7 +45,7 @@ function ManagePage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-2xl px-4 py-12">
+      <main className="mx-auto max-w-2xl px-5 py-12">
         <div className="mb-8">
           <Link
             to="/"
@@ -53,7 +53,7 @@ function ManagePage() {
           >
             <ArrowLeft className="size-3.5" /> Back
           </Link>
-          <h1 className="mt-4 font-semibold text-3xl tracking-tight">Manage site</h1>
+          <h1 className="mt-4 font-semibold text-3xl tracking-tight">Manage this site</h1>
           <p className="mt-1.5 truncate font-mono text-muted-foreground text-xs">/{slug}</p>
         </div>
 
@@ -70,7 +70,7 @@ function ManagePage() {
         ) : (
           <div className="space-y-8">
             {/* Overview */}
-            <div className="rounded-xl border bg-card p-5">
+            <div className="rounded-2xl border bg-card p-5">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{site.title ?? slug}</p>
@@ -92,10 +92,10 @@ function ManagePage() {
             </div>
 
             {!token ? (
-              <div className="rounded-xl border border-dashed bg-card/40 p-5 text-muted-foreground text-sm">
-                Add the site's edit token to this URL (<code className="font-mono">?t=…</code>) to
-                manage it. The token was included in the{" "}
-                <code className="font-mono">manageUrl</code> your agent received at deploy time.
+              <div className="rounded-2xl border border-dashed p-5 text-muted-foreground text-sm leading-relaxed">
+                Add the edit token to this URL (<code className="font-mono">?t=…</code>) to change
+                anything. Your agent got the token back at deploy time, inside{" "}
+                <code className="font-mono">manageUrl</code>.
               </div>
             ) : (
               <>
@@ -121,7 +121,7 @@ function ManagePage() {
                     </Button>
                   </div>
                   <p className="text-muted-foreground text-sm">
-                    Changes appear on the live site instantly — no redeploy needed.
+                    The live page updates as soon as you press one of these.
                   </p>
                 </section>
 
@@ -137,7 +137,7 @@ function ManagePage() {
                   ) : isAuthenticated ? (
                     <>
                       <p className="text-muted-foreground text-sm">
-                        Claim this site to extend its life from 30 to 90 days.
+                        Claim it and it stays up for 90 days instead of 30.
                       </p>
                       <Button
                         disabled={busy}
@@ -153,7 +153,7 @@ function ManagePage() {
                   ) : (
                     <>
                       <p className="text-muted-foreground text-sm">
-                        Anonymous sites live 30 days. Sign in to keep this one for 90.
+                        Anonymous sites last 30 days. Sign in to keep this one for 90.
                       </p>
                       <Link
                         to="/login"
@@ -172,7 +172,7 @@ function ManagePage() {
                 <section className="space-y-3">
                   <h2 className="font-medium">Edit token</h2>
                   <p className="text-muted-foreground text-sm">
-                    Keep this secret — anyone with it can edit or delete the site.
+                    Keep this secret. Anyone who has it can edit or delete the site.
                   </p>
                   <CodeBlock text={token} />
                   <Button

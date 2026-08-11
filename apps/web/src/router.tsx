@@ -4,7 +4,6 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
-import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -28,7 +27,8 @@ export function getRouter() {
   const router = createTanStackRouter({
     routeTree,
     defaultPreload: "intent",
-    defaultPendingComponent: () => <Loader />,
+    // A blank frame beats a spinner that flashes for 80ms on every route change.
+    defaultPendingComponent: () => <div className="min-h-svh bg-background" />,
     defaultNotFoundComponent: () => <div>Not Found</div>,
     context: { queryClient, convexQueryClient },
   });

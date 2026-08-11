@@ -7,6 +7,8 @@ import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
 
+import { AuthCard, AuthField, AuthSwitch } from "./auth-shell";
+
 export default function SignInForm({
   onSwitchToSignUp,
   redirectTo = "/app",
@@ -32,19 +34,14 @@ export default function SignInForm({
     },
     validators: {
       onSubmit: z.object({
-        email: z.email("Invalid email address"),
-        password: z.string().min(8, "Password must be at least 8 characters"),
+        email: z.email("Enter a valid email address"),
+        password: z.string().min(8, "Passwords are at least 8 characters"),
       }),
     },
   });
 
   return (
-    <div className="w-full rounded-2xl border bg-card p-8">
-      <h1 className="font-semibold text-2xl tracking-tight">Welcome back</h1>
-      <p className="mt-1 mb-6 text-muted-foreground text-sm">
-        Sign in to save and manage your sites.
-      </p>
-
+    <AuthCard title="Sign in" subtitle="Pick up the sites you saved.">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -55,43 +52,36 @@ export default function SignInForm({
       >
         <form.Field name="email">
           {(field) => (
-            <div className="space-y-2">
+            <AuthField errors={field.state.meta.errors}>
               <Label htmlFor={field.name}>Email</Label>
               <Input
                 id={field.name}
                 name={field.name}
                 type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} className="text-destructive text-sm">
-                  {error?.message}
-                </p>
-              ))}
-            </div>
+            </AuthField>
           )}
         </form.Field>
 
         <form.Field name="password">
           {(field) => (
-            <div className="space-y-2">
+            <AuthField errors={field.state.meta.errors}>
               <Label htmlFor={field.name}>Password</Label>
               <Input
                 id={field.name}
                 name={field.name}
                 type="password"
+                autoComplete="current-password"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} className="text-destructive text-sm">
-                  {error?.message}
-                </p>
-              ))}
-            </div>
+            </AuthField>
           )}
         </form.Field>
 
@@ -99,19 +89,20 @@ export default function SignInForm({
           selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
         >
           {({ canSubmit, isSubmitting }) => (
-            <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Signing in…" : "Sign in"}
+            <Button
+              type="submit"
+              size="lg"
+              className="mt-2 w-full"
+              disabled={!canSubmit || isSubmitting}
+              loading={isSubmitting}
+            >
+              Sign in
             </Button>
           )}
         </form.Subscribe>
       </form>
 
-      <div className="mt-5 text-center text-muted-foreground text-sm">
-        Need an account?{" "}
-        <Button variant="link" size="sm" className="px-1" onClick={onSwitchToSignUp}>
-          Sign up
-        </Button>
-      </div>
-    </div>
+      <AuthSwitch label="No account yet?" action="Create one" onClick={onSwitchToSignUp} />
+    </AuthCard>
   );
 }

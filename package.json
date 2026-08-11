@@ -28,7 +28,8 @@
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @agent-drop/backend dev",
     "dev:setup": "turbo -F @agent-drop/backend dev:setup",
-    "check": "oxlint && oxfmt --write"
+    "check": "oxlint && oxfmt --write",
+    "skill:sync": "bun run packages/backend/scripts/sync-skill.ts"
   },
   "dependencies": {
     "@agent-drop/env": "workspace:*",

@@ -1,0 +1,14 @@
+$ vite dev
+error when starting dev server:
+Error: Value is none of these types `True`, `Array<T>`,  on BindingViteResolvePluginConfig.noExternal
+    at makeBuiltinPluginCallable (file:///Users/leo/projects/agent-drop/node_modules/.bun/rolldown@1.1.2/node_modules/rolldown/dist/shared/normalize-string-or-regex-CUtNDnr8.mjs:16:23)
+    at viteResolvePlugin (file:///Users/leo/projects/agent-drop/node_modules/.bun/rolldown@1.1.2/node_modules/rolldown/dist/shared/constructors-BcTE5mZO.mjs:29:9)
+    at file:///Users/leo/projects/agent-drop/node_modules/.bun/vite@8.1.0+40777e326d5047b9/node_modules/vite/dist/node/chunks/node.js:31588:18
+    at Object.applyToEnvironment (file:///Users/leo/projects/agent-drop/node_modules/.bun/vite@8.1.0+40777e326d5047b9/node_modules/vite/dist/node/chunks/node.js:31570:11)
+    at resolveEnvironmentPlugins (file:///Users/leo/projects/agent-drop/node_modules/.bun/vite@8.1.0+40777e326d5047b9/node_modules/vite/dist/node/chunks/node.js:2854:33)
+    at async resolveConfig (file:///Users/leo/projects/agent-drop/node_modules/.bun/vite@8.1.0+40777e326d5047b9/node_modules/vite/dist/node/chunks/node.js:35399:95)
+    at async _createServer (file:///Users/leo/projects/agent-drop/node_modules/.bun/vite@8.1.0+40777e326d5047b9/node_modules/vite/dist/node/chunks/node.js:25315:65)
+    at async CAC.<anonymous> (file:///Users/leo/projects/agent-drop/node_modules/.bun/vite@8.1.0+40777e326d5047b9/node_modules/vite/dist/node/cli.js:708:18) {
+  code: 'InvalidArg'
+}
+error: script "dev" exited with code 1

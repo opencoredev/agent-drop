@@ -7,6 +7,8 @@ import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
 
+import { AuthCard, AuthField, AuthSwitch } from "./auth-shell";
+
 export default function SignUpForm({
   onSwitchToSignIn,
   redirectTo = "/app",
@@ -32,18 +34,15 @@ export default function SignUpForm({
     },
     validators: {
       onSubmit: z.object({
-        name: z.string().min(2, "Name must be at least 2 characters"),
-        email: z.email("Invalid email address"),
-        password: z.string().min(8, "Password must be at least 8 characters"),
+        name: z.string().min(2, "Use at least 2 characters"),
+        email: z.email("Enter a valid email address"),
+        password: z.string().min(8, "Use at least 8 characters"),
       }),
     },
   });
 
   return (
-    <div className="w-full rounded-2xl border bg-card p-8">
-      <h1 className="font-semibold text-2xl tracking-tight">Create your account</h1>
-      <p className="mt-1 mb-6 text-muted-foreground text-sm">Keep your sites for up to 90 days.</p>
-
+    <AuthCard title="Create an account" subtitle="Claimed sites stay up for 90 days.">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -54,63 +53,52 @@ export default function SignUpForm({
       >
         <form.Field name="name">
           {(field) => (
-            <div className="space-y-2">
+            <AuthField errors={field.state.meta.errors}>
               <Label htmlFor={field.name}>Name</Label>
               <Input
                 id={field.name}
                 name={field.name}
+                autoComplete="name"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} className="text-destructive text-sm">
-                  {error?.message}
-                </p>
-              ))}
-            </div>
+            </AuthField>
           )}
         </form.Field>
 
         <form.Field name="email">
           {(field) => (
-            <div className="space-y-2">
+            <AuthField errors={field.state.meta.errors}>
               <Label htmlFor={field.name}>Email</Label>
               <Input
                 id={field.name}
                 name={field.name}
                 type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} className="text-destructive text-sm">
-                  {error?.message}
-                </p>
-              ))}
-            </div>
+            </AuthField>
           )}
         </form.Field>
 
         <form.Field name="password">
           {(field) => (
-            <div className="space-y-2">
+            <AuthField errors={field.state.meta.errors}>
               <Label htmlFor={field.name}>Password</Label>
               <Input
                 id={field.name}
                 name={field.name}
                 type="password"
+                autoComplete="new-password"
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} className="text-destructive text-sm">
-                  {error?.message}
-                </p>
-              ))}
-            </div>
+            </AuthField>
           )}
         </form.Field>
 
@@ -118,19 +106,20 @@ export default function SignUpForm({
           selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
         >
           {({ canSubmit, isSubmitting }) => (
-            <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Creating…" : "Create account"}
+            <Button
+              type="submit"
+              size="lg"
+              className="mt-2 w-full"
+              disabled={!canSubmit || isSubmitting}
+              loading={isSubmitting}
+            >
+              Create account
             </Button>
           )}
         </form.Subscribe>
       </form>
 
-      <div className="mt-5 text-center text-muted-foreground text-sm">
-        Already have an account?{" "}
-        <Button variant="link" size="sm" className="px-1" onClick={onSwitchToSignIn}>
-          Sign in
-        </Button>
-      </div>
-    </div>
+      <AuthSwitch label="Already have one?" action="Sign in" onClick={onSwitchToSignIn} />
+    </AuthCard>
   );
 }
