@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <rect width="24" height="24" rx="7" fill="#16a34a"/>
-  <rect x="10.9" y="5" width="2.2" height="7.2" rx="1.1" fill="#fff"/>
-  <path d="M12 15.4 7.6 10.6h8.8z" fill="#fff"/>
-  <rect x="6.9" y="16.6" width="10.2" height="2.2" rx="1.1" fill="#fff"/>
+  <!-- The tile lightens in dark UI so the mark keeps its contrast against a
+       dark browser tab strip, and the arrow darkens to match. -->
+  <style>
+    .tile { fill: #16a34a; }
+    .mark { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #4ade80; }
+      .mark { fill: #0a0a0a; }
+    }
+  </style>
+  <rect class="tile" width="24" height="24" rx="7"/>
+  <rect class="mark" x="10.9" y="5" width="2.2" height="7.2" rx="1.1"/>
+  <path class="mark" d="M12 15.4 7.6 10.6h8.8z"/>
+  <rect class="mark" x="6.9" y="16.6" width="10.2" height="2.2" rx="1.1"/>
 </svg>

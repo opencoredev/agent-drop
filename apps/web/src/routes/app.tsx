@@ -4,6 +4,7 @@ import { Skeleton } from "@agent-drop/ui/components/skeleton";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 
+import { ApiKeys } from "@/components/api-keys";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
 
@@ -24,6 +25,9 @@ function AppPage() {
         <div className="mt-9">
           <Authenticated>
             <MySites />
+            <div className="mt-14 border-t pt-10">
+              <ApiKeys />
+            </div>
           </Authenticated>
           <Unauthenticated>
             <p className="text-muted-foreground">

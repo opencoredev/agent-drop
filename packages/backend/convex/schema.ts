@@ -45,6 +45,22 @@ export default defineSchema({
     .index("by_expiresAt", ["expiresAt"])
     .index("by_owner", ["ownerSubject"]),
 
+  // Long-lived keys that let an agent act as a signed-in account over the HTTP
+  // API. Only the SHA-256 hash is stored; the raw key is shown once at creation.
+  // A request carrying one gets that account's much larger create budget, and
+  // the pages it makes are owned, private by default, and kept for 90 days.
+  apiKeys: defineTable({
+    ownerSubject: v.string(),
+    name: v.string(),
+    keyHash: v.string(),
+    // Leading characters, so a key is recognizable in the UI without storing it.
+    prefix: v.string(),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+  })
+    .index("by_hash", ["keyHash"])
+    .index("by_owner", ["ownerSubject"]),
+
   // Every R2 content object ever written for a site. The timeline only keeps the
   // most recent 50 versions, so once it prunes a node its R2 key is unreachable
   // from the timeline and would leak storage forever. This ledger is the record

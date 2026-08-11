@@ -10,7 +10,7 @@ import {
   query,
 } from "./_generated/server";
 import { authComponent } from "./auth";
-import { mintViewToken, sha256Hex, siteExpiry } from "./lib";
+import { generateEditToken, mintViewToken, sha256Hex, siteExpiry } from "./lib";
 import { r2 } from "./r2";
 import { siteKind, siteVisibility } from "./schema";
 import { MAX_VERSIONS, type SiteVersion, timeline } from "./timeline";
@@ -18,6 +18,9 @@ import { MAX_VERSIONS, type SiteVersion, timeline } from "./timeline";
 /** How many stale content objects one update may clean up. Keeps the mutation
  * cheap while still draining any backlog over successive updates. */
 const PRUNE_BATCH = 5;
+
+/** Enough keys to separate machines or agents, few enough to stay reviewable. */
+const MAX_KEYS_PER_ACCOUNT = 10;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -337,6 +340,7 @@ export const recordDeploy = internalMutation({
     contentType: v.string(),
     byteSize: v.number(),
     editTokenHash: v.string(),
+    ownerSubject: v.optional(v.string()),
     visibility: siteVisibility,
     now: v.number(),
     expiresAt: v.number(),
@@ -352,6 +356,7 @@ export const recordDeploy = internalMutation({
       byteSize: a.byteSize,
       editTokenHash: a.editTokenHash,
       hasImages: false,
+      ownerSubject: a.ownerSubject,
       visibility: a.visibility,
       scope: a.scope,
       createdAt: a.now,
@@ -523,5 +528,102 @@ export const cleanupExpired = internalMutation({
     for (const site of expiredSites) await purgeSite(ctx, site);
 
     return { images: expiredImages.length, sites: expiredSites.length };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Account API keys
+//
+// The HTTP API is otherwise anonymous: an edit token proves you may change one
+// page, not who you are. A key is what lets an agent act as an account, which is
+// what raises the create limit and makes new pages owned and private.
+// ---------------------------------------------------------------------------
+
+/** How stale `lastUsedAt` may get before a request pays to refresh it. */
+const KEY_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+
+export const listApiKeys = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return [];
+    const keys = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_owner", (q) => q.eq("ownerSubject", user._id))
+      .collect();
+    return keys
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((k) => ({
+        id: k._id,
+        name: k.name,
+        prefix: k.prefix,
+        createdAt: k.createdAt,
+        lastUsedAt: k.lastUsedAt ?? null,
+      }));
+  },
+});
+
+export const createApiKey = mutation({
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new Error("You must be signed in to create a key.");
+
+    const existing = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_owner", (q) => q.eq("ownerSubject", user._id))
+      .collect();
+    if (existing.length >= MAX_KEYS_PER_ACCOUNT) {
+      throw new Error(`You can have at most ${MAX_KEYS_PER_ACCOUNT} keys. Revoke one first.`);
+    }
+
+    const key = `adk_${generateEditToken()}`;
+    await ctx.db.insert("apiKeys", {
+      ownerSubject: user._id,
+      name: name.trim().slice(0, 60) || "Untitled key",
+      keyHash: await sha256Hex(key),
+      prefix: key.slice(0, 12),
+      createdAt: Date.now(),
+    });
+    // The only time the raw key exists outside the caller's machine.
+    return { key };
+  },
+});
+
+export const revokeApiKey = mutation({
+  args: { id: v.id("apiKeys") },
+  handler: async (ctx, { id }) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new Error("You must be signed in.");
+    const row = await ctx.db.get(id);
+    if (!row || row.ownerSubject !== user._id) throw new Error("Key not found.");
+    await ctx.db.delete(id);
+    return { ok: true };
+  },
+});
+
+/** Resolve a presented key to its account. Returns null for anything unknown. */
+export const resolveApiKey = internalQuery({
+  args: { keyHash: v.string() },
+  handler: async (ctx, { keyHash }) => {
+    const row = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
+      .unique();
+    if (!row) return null;
+    return { id: row._id, ownerSubject: row.ownerSubject, lastUsedAt: row.lastUsedAt ?? 0 };
+  },
+});
+
+/** Refresh `lastUsedAt`, at most once an hour, so the list is useful without
+ * writing on every single request. */
+export const touchApiKey = internalMutation({
+  args: { id: v.id("apiKeys") },
+  handler: async (ctx, { id }) => {
+    const row = await ctx.db.get(id);
+    if (!row) return;
+    const now = Date.now();
+    if (now - (row.lastUsedAt ?? 0) < KEY_TOUCH_INTERVAL_MS) return;
+    await ctx.db.patch(id, { lastUsedAt: now });
   },
 });

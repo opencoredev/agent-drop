@@ -50,6 +50,23 @@ Cursor (`~/.cursor/mcp.json`) and anything else that edits JSON:
 { "mcpServers": { "agentdrop": { "url": "https://abundant-poodle-82.convex.site/mcp" } } }
 ```
 
+## If the user has an account key
+
+Anonymous deploys are rate limited fairly tightly and the pages they make are
+temporary. If the user gives you a key that starts with `adk_`, send it on deploy:
+
+```bash
+curl -X POST https://abundant-poodle-82.convex.site/api/v1/sites \
+  -H "Authorization: Bearer adk_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "kind": "markdown", "visibility": "private", "content": "# Hello" }'
+```
+
+With a key the page is owned by that account, kept for 90 days instead of 30,
+private unless you ask for public, and the create limit is far higher. The user
+generates one at the app's account page. Treat it like a password: never write it
+into page content, and never show it back in a published page.
+
 ## Private by default — ask before publishing publicly
 
 Every page takes a `visibility` of `"private"` or `"public"`. **Always send it

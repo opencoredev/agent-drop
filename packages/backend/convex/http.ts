@@ -193,10 +193,41 @@ async function authorize(ctx: ActionCtx, slug: string, token: string | null): Pr
   return { auth: result };
 }
 
-async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
-  const limit = await rateLimiter.limit(ctx, "createSite", { key: rateKey });
+/**
+ * Identify the caller of a deploy.
+ *
+ * An account key means there is a person behind the request, so the limit is
+ * keyed to that account instead of an address, and the page it creates is owned:
+ * private by default and kept for the longer window.
+ */
+async function identify(ctx: ActionCtx, request: Request) {
+  const presented = bearerToken(request);
+  if (!presented) return null;
+  const key = await ctx.runQuery(internal.sites.resolveApiKey, {
+    keyHash: await sha256Hex(presented),
+  });
+  if (!key) return null;
+  await ctx.runMutation(internal.sites.touchApiKey, { id: key.id });
+  return { ownerSubject: key.ownerSubject };
+}
+
+async function opDeploy(
+  ctx: ActionCtx,
+  rateKey: string,
+  body: unknown,
+  owner: { ownerSubject: string } | null,
+) {
+  const limit = owner
+    ? await rateLimiter.limit(ctx, "createSiteAuthed", { key: owner.ownerSubject })
+    : await rateLimiter.limit(ctx, "createSite", { key: rateKey });
   if (!limit.ok) {
-    return { error: "Rate limit exceeded. Try again later.", status: 429, retry: limit.retryAfter };
+    return {
+      error: owner
+        ? "Rate limit exceeded for this account. Try again later."
+        : "Rate limit exceeded. Sign in and use an account key for a much higher limit.",
+      status: 429,
+      retry: limit.retryAfter,
+    };
   }
 
   const parsed = parseContent(body);
@@ -209,7 +240,7 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
   await r2.store(ctx, parsed.bytes, { key, type: parsed.contentType, cacheControl: VERSION_CACHE });
 
   const now = Date.now();
-  const expiresAt = now + RETENTION.anonMs;
+  const expiresAt = now + (owner ? RETENTION.ownedMs : RETENTION.anonMs);
   try {
     await ctx.runMutation(internal.sites.recordDeploy, {
       slug,
@@ -220,7 +251,9 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
       contentType: parsed.contentType,
       byteSize: parsed.bytes.byteLength,
       editTokenHash,
-      visibility: parsed.visibility ?? "public",
+      ownerSubject: owner?.ownerSubject,
+      // A page made with an account key is the caller's own work by default.
+      visibility: parsed.visibility ?? (owner ? "private" : "public"),
       now,
       expiresAt,
     });
@@ -235,9 +268,10 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
     manageUrl: `${app}/manage/${slug}?t=${editToken}`,
     editToken,
     kind: parsed.kind,
-    visibility: parsed.visibility ?? "public",
+    visibility: parsed.visibility ?? (owner ? "private" : "public"),
+    owned: owner !== null,
     expiresAt,
-    retentionDays: 30,
+    retentionDays: owner ? 90 : 30,
   };
 }
 
@@ -322,7 +356,7 @@ const createSite = httpAction(async (ctx, request) => {
     return fail(400, "Request body must be valid JSON.");
   }
 
-  const out = await opDeploy(ctx, clientIp(request), body);
+  const out = await opDeploy(ctx, clientIp(request), body, await identify(ctx, request));
   if (isOpError(out)) {
     const retry = (out as { retry?: number }).retry;
     return fail(out.status, out.error, retry ? retryHeader(retry) : {});
@@ -559,7 +593,11 @@ function toolFailure(value: OpError): ToolResult {
   return { text: value.error, isError: true };
 }
 
-function mcpRunner(ctx: ActionCtx, request: Request): ToolRunner {
+function mcpRunner(
+  ctx: ActionCtx,
+  request: Request,
+  owner: { ownerSubject: string } | null,
+): ToolRunner {
   const ip = clientIp(request);
 
   return async (name, args) => {
@@ -568,7 +606,7 @@ function mcpRunner(ctx: ActionCtx, request: Request): ToolRunner {
 
     switch (name) {
       case "deploy_site": {
-        const out = await opDeploy(ctx, ip, args);
+        const out = await opDeploy(ctx, ip, args, owner);
         return isOpError(out) ? toolFailure(out) : toolText(out);
       }
       case "update_site": {
@@ -602,7 +640,14 @@ const mcpPost = httpAction(async (ctx, request) => {
     return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400);
   }
 
-  const reply = await handleMcpMessage(body, readMcpHeaders(request), mcpRunner(ctx, request));
+  // An MCP client can present an account key as a bearer token today; once the
+  // OAuth flow lands this is where the access token will resolve instead.
+  const owner = await identify(ctx, request);
+  const reply = await handleMcpMessage(
+    body,
+    readMcpHeaders(request),
+    mcpRunner(ctx, request, owner),
+  );
   if (reply.body === null) return new Response(null, { status: reply.status, headers: MCP_CORS });
   return json(reply.body, reply.status, MCP_CORS);
 });
