@@ -26,6 +26,23 @@ export function Wordmark({ className }: { className?: string }) {
   );
 }
 
+/** Marks a page only its owner (or an edit-token holder) can open. */
+export function PrivatePill({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 font-medium text-[0.7rem] text-muted-foreground",
+        className,
+      )}
+    >
+      <svg viewBox="0 0 24 24" className="size-3" fill="currentColor" aria-hidden="true">
+        <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z" />
+      </svg>
+      Private
+    </span>
+  );
+}
+
 /** The small "live" pill shown next to a URL or a site title. */
 export function LivePill({ className }: { className?: string }) {
   return (

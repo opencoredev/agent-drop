@@ -41,7 +41,7 @@ function ViewerPage() {
   return (
     <div className={isHtml ? "flex h-svh flex-col overflow-hidden" : "min-h-svh"}>
       <SiteViewer site={site} />
-      <SiteBadge />
+      <SiteBadge isPrivate={site.visibility === "private"} />
     </div>
   );
 }

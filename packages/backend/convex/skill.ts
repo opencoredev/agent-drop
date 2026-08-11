@@ -54,6 +54,26 @@ Cursor (\`~/.cursor/mcp.json\`) and anything else that edits JSON:
 { "mcpServers": { "agentdrop": { "url": "${base}/mcp" } } }
 \`\`\`
 
+## Private by default — ask before publishing publicly
+
+Every page takes a \`visibility\` of \`"private"\` or \`"public"\`. **Always send it
+explicitly.** Default to \`"private"\`, and only send \`"public"\` after the user has
+said, in that conversation, that the page may be world-readable. If you are unsure,
+ask them first: "should this be public, or private to you?"
+
+- \`"private"\` — the page opens only for the signed-in owner, or for a caller
+  presenting the edit token. Anyone else with the link gets a plain not-found page,
+  so the URL does not even confirm the page exists. Use this for anything drawn from
+  the user's own code, data, notes, or work.
+- \`"public"\` — anyone holding the link can read it. Use this only for something the
+  user is deliberately publishing or sharing.
+
+A private page an anonymous deploy created belongs to whoever holds the edit token.
+Tell the user to open the \`manageUrl\` and claim it, which ties it to their account
+and makes it open for them alone.
+
+Omitting \`visibility\` on an update leaves the current setting alone.
+
 ## Security — read first
 
 NEVER put secrets in site content: no API keys, tokens, passwords, private keys,
@@ -67,13 +87,14 @@ curl -X POST ${base}/api/v1/sites \\
   -H "Content-Type: application/json" \\
   -d '{
     "kind": "markdown",
+    "visibility": "private",
     "title": "Optional title",
     "content": "# Hello\\n\\nMarkdown or a full HTML document."
   }'
 \`\`\`
 
-\`kind\` is \`"markdown"\` or \`"html"\`, \`title\` is optional, and the body is plain JSON:
-do not put comments inside it.
+\`kind\` is \`"markdown"\` or \`"html"\`, \`visibility\` is \`"private"\` or \`"public"\`,
+\`title\` is optional, and the body is plain JSON: do not put comments inside it.
 
 Response:
 

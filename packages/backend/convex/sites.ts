@@ -10,9 +10,9 @@ import {
   query,
 } from "./_generated/server";
 import { authComponent } from "./auth";
-import { sha256Hex, siteExpiry } from "./lib";
+import { mintViewToken, sha256Hex, siteExpiry } from "./lib";
 import { r2 } from "./r2";
-import { siteKind } from "./schema";
+import { siteKind, siteVisibility } from "./schema";
 import { MAX_VERSIONS, type SiteVersion, timeline } from "./timeline";
 
 /** How many stale content objects one update may clean up. Keeps the mutation
@@ -40,6 +40,18 @@ async function liveBySlug(ctx: QueryCtx, slug: string): Promise<Doc<"sites"> | n
   const site = await bySlug(ctx, slug);
   if (!site || site.expiresAt <= Date.now()) return null;
   return site;
+}
+
+/** A page with no stored visibility predates the field and is public. */
+function visibilityOf(site: Doc<"sites">): "public" | "private" {
+  return site.visibility ?? "public";
+}
+
+/** Whether the caller signed in as the owner of this page. */
+async function isOwner(ctx: QueryCtx, site: Doc<"sites">): Promise<boolean> {
+  if (!site.ownerSubject) return false;
+  const user = await authComponent.safeGetAuthUser(ctx);
+  return user?._id === site.ownerSubject;
 }
 
 /** Record an R2 content object so purge can delete it even after the timeline
@@ -119,6 +131,12 @@ export const getBySlug = query({
   handler: async (ctx, { slug }) => {
     const site = await liveBySlug(ctx, slug);
     if (!site) return null;
+
+    // A private page must not even confirm it exists to a stranger, so this is
+    // the same null the viewer renders as "this page is gone".
+    const visibility = visibilityOf(site);
+    if (visibility === "private" && !(await isOwner(ctx, site))) return null;
+
     const status = await timeline.status(ctx, site.scope);
     const siteUrl = process.env.CONVEX_SITE_URL ?? "";
     return {
@@ -127,6 +145,7 @@ export const getBySlug = query({
       title: site.title ?? null,
       byteSize: site.byteSize,
       hasImages: site.hasImages,
+      visibility,
       owned: site.ownerSubject !== undefined,
       createdAt: site.createdAt,
       updatedAt: site.updatedAt,
@@ -136,10 +155,16 @@ export const getBySlug = query({
       version: status.position,
       versions: status.length,
       // Versioned so the URL changes on every deploy/update/undo, busting any
-      // browser cache and reloading the viewer's <iframe>/fetch.
-      contentUrl: `${siteUrl}/api/v1/sites/${encodeURIComponent(slug)}/raw?v=${encodeURIComponent(
-        site.currentKey,
-      )}`,
+      // browser cache and reloading the viewer's <iframe>/fetch. A private page
+      // also carries a short-lived capability, minted only because the owner
+      // check above passed.
+      contentUrl:
+        `${siteUrl}/api/v1/sites/${encodeURIComponent(slug)}/raw?v=${encodeURIComponent(
+          site.currentKey,
+        )}` +
+        (visibility === "private"
+          ? `&vt=${encodeURIComponent(await mintViewToken(slug, site.currentKey, Date.now()))}`
+          : ""),
     };
   },
 });
@@ -170,6 +195,26 @@ export const listMine = query({
 // ---------------------------------------------------------------------------
 // Public mutation: claim a site by signing in
 // ---------------------------------------------------------------------------
+
+/**
+ * Flip a page between public and private from the manage screen.
+ *
+ * Only the signed-in owner may do this: a page whose reader set can change has
+ * to have someone accountable for it, and the edit token alone is a bearer
+ * secret an agent may have logged somewhere.
+ */
+export const setVisibility = mutation({
+  args: { slug: v.string(), visibility: siteVisibility },
+  handler: async (ctx, { slug, visibility }) => {
+    const site = await liveBySlug(ctx, slug);
+    if (!site) throw new Error("Site not found.");
+    if (!(await isOwner(ctx, site))) {
+      throw new Error("Only the owner can change who can see this page. Claim it first.");
+    }
+    await ctx.db.patch(site._id, { visibility });
+    return { ok: true, visibility };
+  },
+});
 
 export const claim = mutation({
   args: { slug: v.string(), editToken: v.string() },
@@ -219,7 +264,13 @@ export const rawInfoBySlug = internalQuery({
   handler: async (ctx, { slug }) => {
     const site = await liveBySlug(ctx, slug);
     if (!site) return null;
-    return { key: site.currentKey, kind: site.kind, contentType: site.contentType };
+    return {
+      key: site.currentKey,
+      kind: site.kind,
+      contentType: site.contentType,
+      visibility: visibilityOf(site),
+      editTokenHash: site.editTokenHash,
+    };
   },
 });
 
@@ -234,6 +285,10 @@ export const statusBySlug = internalQuery({
       kind: site.kind,
       title: site.title ?? null,
       hasImages: site.hasImages,
+      visibility: visibilityOf(site),
+      // Only the HTTP layer sees this; it decides whether the caller may know
+      // the page exists at all.
+      editTokenHash: site.editTokenHash,
       owned: site.ownerSubject !== undefined,
       createdAt: site.createdAt,
       updatedAt: site.updatedAt,
@@ -282,6 +337,7 @@ export const recordDeploy = internalMutation({
     contentType: v.string(),
     byteSize: v.number(),
     editTokenHash: v.string(),
+    visibility: siteVisibility,
     now: v.number(),
     expiresAt: v.number(),
   },
@@ -296,6 +352,7 @@ export const recordDeploy = internalMutation({
       byteSize: a.byteSize,
       editTokenHash: a.editTokenHash,
       hasImages: false,
+      visibility: a.visibility,
       scope: a.scope,
       createdAt: a.now,
       updatedAt: a.now,
@@ -323,6 +380,7 @@ export const recordUpdate = internalMutation({
     key: v.string(),
     contentType: v.string(),
     byteSize: v.number(),
+    visibility: v.optional(siteVisibility),
   },
   handler: async (ctx, a) => {
     const site = await liveBySlug(ctx, a.slug);
@@ -334,6 +392,8 @@ export const recordUpdate = internalMutation({
       currentKey: a.key,
       contentType: a.contentType,
       byteSize: a.byteSize,
+      // Omitting visibility on update leaves the page as it was.
+      visibility: a.visibility ?? visibilityOf(site),
       updatedAt: now,
       expiresAt: siteExpiry(now, site.ownerSubject !== undefined),
     });

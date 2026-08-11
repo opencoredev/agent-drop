@@ -4,8 +4,9 @@ import { Mark } from "./wordmark";
 
 /** The only mark we put on a published page: a small badge in the corner that
  * says the page is live and where it came from. It stays out of the way and
- * fades back until pointed at. */
-export function SiteBadge() {
+ * fades back until pointed at. Private pages say so, because the owner needs to
+ * know at a glance that a link they are about to send will not open. */
+export function SiteBadge({ isPrivate = false }: { isPrivate?: boolean }) {
   return (
     <Link
       to="/"
@@ -13,8 +14,17 @@ export function SiteBadge() {
     >
       <Mark className="size-4" />
       <span className="font-medium">agentdrop</span>
-      <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
-      <span className="sr-only">This page is live and hosted on agentdrop</span>
+      {isPrivate ? (
+        <>
+          <span className="text-muted-foreground">private</span>
+          <span className="sr-only">Only you can open this page</span>
+        </>
+      ) : (
+        <>
+          <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
+          <span className="sr-only">This page is live and hosted on agentdrop</span>
+        </>
+      )}
     </Link>
   );
 }

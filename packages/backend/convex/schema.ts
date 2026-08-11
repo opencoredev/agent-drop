@@ -3,6 +3,16 @@ import { v } from "convex/values";
 
 export const siteKind = v.union(v.literal("markdown"), v.literal("html"));
 
+/**
+ * Who may read a page.
+ *
+ * `public`  anyone with the link.
+ * `private` the signed-in owner, or a caller holding the edit token. A stranger
+ *           with the link gets the same 404 as a page that never existed, so the
+ *           URL alone does not confirm that it exists.
+ */
+export const siteVisibility = v.union(v.literal("public"), v.literal("private"));
+
 export default defineSchema({
   // A deployed static site. The actual content lives in R2 (`currentKey`); this
   // table only holds metadata + the pointer to the current R2 object. Version
@@ -22,6 +32,8 @@ export default defineSchema({
     // anonymous.
     ownerSubject: v.optional(v.string()),
     hasImages: v.boolean(),
+    // Absent on rows written before visibility existed; treated as public.
+    visibility: v.optional(siteVisibility),
     // Timeline scope, always `site:<slug>`.
     scope: v.string(),
     createdAt: v.number(),

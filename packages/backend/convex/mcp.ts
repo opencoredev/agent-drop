@@ -50,13 +50,19 @@ const CONTENT_FIELDS: JsonSchema = {
       "The whole document. One file, not a folder. Never include secrets, keys, or tokens: the page is public.",
   },
   title: { type: "string", description: "Optional title shown in the viewer chrome." },
+  visibility: {
+    type: "string",
+    enum: ["private", "public"],
+    description:
+      "Who may read the page. Default to 'private', which opens only for the owner or a caller holding the editToken; everyone else gets a not-found page. Send 'public' only after the user has said the page may be world-readable. Ask them if you are unsure.",
+  },
 };
 
 export const MCP_TOOLS: McpTool[] = [
   {
     name: "deploy_site",
     description:
-      "Publish a new static site (Markdown or HTML) and get back a public URL. Returns an editToken that is required to change the site later, so save it.",
+      "Publish a new static site (Markdown or HTML) and get back its URL. Pass visibility explicitly: default to 'private' and confirm with the user before publishing publicly. Returns an editToken that is required to change the site later, so save it.",
     inputSchema: {
       type: "object",
       properties: CONTENT_FIELDS,
@@ -129,7 +135,11 @@ returns: they are the only way to update, undo, or delete that page later. Prefe
 update_site and undo_site over deploying a second page, because the URL stays stable
 and anyone holding it sees changes right away.
 
-Page content is public. Never put API keys, tokens, passwords, or .env values in it.
+Publish pages as visibility 'private' unless the user has said the page may be
+public. A private page opens only for its owner or a caller holding the editToken.
+
+Even a private page is a hosted document, so never put API keys, tokens, passwords,
+or .env values in one.
 
 Anonymous pages are kept 30 days. The manageUrl lets the user sign in and keep one for 90.`;
 

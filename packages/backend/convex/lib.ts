@@ -34,6 +34,66 @@ export async function sha256Hex(input: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// ---------------------------------------------------------------------------
+// View capabilities for private pages
+//
+// A private page is served from the same public raw endpoint as everything else,
+// so the owner's browser needs something to present. It has a session with the
+// app, not with the Convex `.site` origin, and a signed R2 URL would fail CORS
+// on the Markdown fetch. So the query that already proved ownership mints a
+// short-lived capability bound to one slug and one content key.
+// ---------------------------------------------------------------------------
+
+const VIEW_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+async function viewKey(): Promise<CryptoKey> {
+  // Derived rather than reused directly, so this capability cannot be swapped
+  // with anything else signed by the auth secret.
+  const material = await sha256Hex(`agentdrop/view/${process.env.BETTER_AUTH_SECRET ?? ""}`);
+  return await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(material),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+}
+
+async function viewSignature(slug: string, key: string, expiresAt: number): Promise<string> {
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    await viewKey(),
+    new TextEncoder().encode(`${slug}\n${key}\n${expiresAt}`),
+  );
+  return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Mint `<expiresAt>.<hmac>` authorizing one private page's current content. */
+export async function mintViewToken(slug: string, key: string, now: number): Promise<string> {
+  const expiresAt = now + VIEW_TOKEN_TTL_MS;
+  return `${expiresAt}.${await viewSignature(slug, key, expiresAt)}`;
+}
+
+/** Constant-time-ish check of a view token against a slug + content key. */
+export async function verifyViewToken(
+  slug: string,
+  key: string,
+  token: string | null,
+): Promise<boolean> {
+  if (!token) return false;
+  const [rawExpiry, provided] = token.split(".");
+  const expiresAt = Number(rawExpiry);
+  if (!provided || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return false;
+
+  const expected = await viewSignature(slug, key, expiresAt);
+  if (expected.length !== provided.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 // High-confidence credential formats. We only reject on these to avoid blocking
 // legitimate content; the agent skill is the primary line of defense.
 const SECRET_PATTERNS: ReadonlyArray<{ label: string; re: RegExp }> = [

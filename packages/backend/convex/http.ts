@@ -4,7 +4,14 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { type ActionCtx, httpAction } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
-import { LIMITS, RETENTION, generateEditToken, scanForSecrets, sha256Hex } from "./lib";
+import {
+  LIMITS,
+  RETENTION,
+  generateEditToken,
+  scanForSecrets,
+  sha256Hex,
+  verifyViewToken,
+} from "./lib";
 import { r2 } from "./r2";
 import { rateLimiter } from "./rateLimiter";
 import { type ToolResult, type ToolRunner, handleMcpMessage, readMcpHeaders } from "./mcp";
@@ -105,6 +112,7 @@ type ParsedContent =
       title: string | undefined;
       bytes: Uint8Array;
       contentType: string;
+      visibility: "public" | "private" | undefined;
     };
 
 function parseContent(body: unknown): ParsedContent {
@@ -129,7 +137,14 @@ function parseContent(body: unknown): ParsedContent {
   const title =
     typeof b.title === "string" ? b.title.slice(0, LIMITS.maxTitleLength) || undefined : undefined;
   const contentType = kind === "html" ? "text/html; charset=utf-8" : "text/markdown; charset=utf-8";
-  return { kind, title, bytes, contentType };
+
+  // Absent means "leave it alone" on update, and "public" on deploy. The skill
+  // tells agents to send it explicitly rather than rely on either default.
+  const rawVisibility = b.visibility;
+  if (rawVisibility !== undefined && rawVisibility !== "public" && rawVisibility !== "private") {
+    return { error: "`visibility` must be 'public' or 'private'.", status: 400 };
+  }
+  return { kind, title, bytes, contentType, visibility: rawVisibility };
 }
 
 const VERSION_CACHE = "public, max-age=31536000, immutable";
@@ -205,6 +220,7 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
       contentType: parsed.contentType,
       byteSize: parsed.bytes.byteLength,
       editTokenHash,
+      visibility: parsed.visibility ?? "public",
       now,
       expiresAt,
     });
@@ -219,6 +235,7 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
     manageUrl: `${app}/manage/${slug}?t=${editToken}`,
     editToken,
     kind: parsed.kind,
+    visibility: parsed.visibility ?? "public",
     expiresAt,
     retentionDays: 30,
   };
@@ -246,9 +263,17 @@ async function opUpdate(ctx: ActionCtx, slug: string, token: string | null, body
     key,
     contentType: parsed.contentType,
     byteSize: parsed.bytes.byteLength,
+    visibility: parsed.visibility,
   });
+  return { ok: true, ...(await publicStatus(ctx, slug)) };
+}
+
+/** Site status with the token hash stripped, safe to return to a caller. */
+async function publicStatus(ctx: ActionCtx, slug: string) {
   const status = await ctx.runQuery(internal.sites.statusBySlug, { slug });
-  return { ok: true, ...status };
+  if (!status) return {};
+  const { editTokenHash: _hash, ...visible } = status;
+  return visible;
 }
 
 async function opHistory(
@@ -266,10 +291,16 @@ async function opHistory(
   return { ok: true, ...applied };
 }
 
-async function opStatus(ctx: ActionCtx, slug: string) {
+async function opStatus(ctx: ActionCtx, slug: string, token: string | null) {
   const status = await ctx.runQuery(internal.sites.statusBySlug, { slug });
-  if (!status) return { error: "Site not found.", status: 404 };
-  return status;
+  if (!status) return GONE;
+
+  const { editTokenHash, ...visible } = status;
+  if (visible.visibility === "private") {
+    const holdsEditToken = token !== null && (await sha256Hex(token)) === editTokenHash;
+    if (!holdsEditToken) return GONE;
+  }
+  return visible;
 }
 
 async function opDelete(ctx: ActionCtx, slug: string, token: string | null) {
@@ -326,6 +357,18 @@ const sitesGet = httpAction(async (ctx, request) => {
   if (sub === "raw") {
     const info = await ctx.runQuery(internal.sites.rawInfoBySlug, { slug });
     if (!info) return fail(404, "Site not found.");
+
+    if (info.visibility === "private") {
+      // Either the caller holds the edit token, or the owner's browser is
+      // presenting a capability the ownership-checked query minted for it.
+      const token = bearerToken(request);
+      const holdsEditToken = token !== null && (await sha256Hex(token)) === info.editTokenHash;
+      const viewToken = new URL(request.url).searchParams.get("vt");
+      const mayView = holdsEditToken || (await verifyViewToken(slug, info.key, viewToken));
+      // Same answer as a page that never existed: the URL must not confirm that
+      // a private page is there.
+      if (!mayView) return fail(404, "Site not found.");
+    }
     const upstream = await fetch(await r2.getUrl(info.key, { expiresIn: 600 }));
     if (!upstream.ok || !upstream.body) return fail(502, "Failed to load content.");
     const headers: Record<string, string> = {
@@ -345,7 +388,7 @@ const sitesGet = httpAction(async (ctx, request) => {
   }
 
   if (!sub) {
-    const status = await opStatus(ctx, slug);
+    const status = await opStatus(ctx, slug, bearerToken(request));
     if (isOpError(status)) return fail(status.status, status.error);
     return json(status);
   }
@@ -538,7 +581,7 @@ function mcpRunner(ctx: ActionCtx, request: Request): ToolRunner {
         return isOpError(out) ? toolFailure(out) : toolText(out);
       }
       case "get_site": {
-        const out = await opStatus(ctx, slug);
+        const out = await opStatus(ctx, slug, token);
         return isOpError(out) ? toolFailure(out) : toolText(out);
       }
       case "delete_site": {

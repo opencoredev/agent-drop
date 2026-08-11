@@ -3,13 +3,14 @@ import { Button, buttonVariants } from "@agent-drop/ui/components/button";
 import { Separator } from "@agent-drop/ui/components/separator";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { ArrowLeft, ExternalLink, Redo2, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Globe, Lock, Redo2, Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { CodeBlock } from "@/components/code-block";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
+import { PrivatePill } from "@/components/wordmark";
 import { appOrigin, deleteSite, redoSite, undoSite } from "@/lib/agentdrop";
 
 export const Route = createFileRoute("/manage/$slug")({
@@ -26,6 +27,7 @@ function ManagePage() {
   const { isAuthenticated } = useConvexAuth();
   const site = useQuery(api.sites.getBySlug, { slug });
   const claim = useMutation(api.sites.claim);
+  const setVisibility = useMutation(api.sites.setVisibility);
   const [busy, setBusy] = useState(false);
 
   const viewerUrl = `${appOrigin()}/${slug}`;
@@ -73,7 +75,10 @@ function ManagePage() {
             <div className="rounded-2xl border bg-card p-5">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{site.title ?? slug}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate font-medium">{site.title ?? slug}</p>
+                    {site.visibility === "private" ? <PrivatePill /> : null}
+                  </div>
                   <p className="mt-0.5 text-muted-foreground text-sm">
                     {site.kind === "html" ? "HTML" : "Markdown"} · version{" "}
                     {typeof site.version === "number" ? site.version + 1 : "—"} of {site.versions} ·
@@ -123,6 +128,42 @@ function ManagePage() {
                   <p className="text-muted-foreground text-sm">
                     The live page updates as soon as you press one of these.
                   </p>
+                </section>
+
+                <Separator />
+
+                {/* Who can see it */}
+                <section className="space-y-3">
+                  <h2 className="font-medium">Who can see this page</h2>
+                  {site.owned ? (
+                    <>
+                      <p className="text-muted-foreground text-sm leading-relaxed">
+                        {site.visibility === "private"
+                          ? "Only you can open this page. Anyone else with the link gets a not-found page."
+                          : "Anyone with the link can open this page."}
+                      </p>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                          const next = site.visibility === "private" ? "public" : "private";
+                          void run(
+                            next === "private" ? "Page is now private" : "Page is now public",
+                            () => setVisibility({ slug, visibility: next }),
+                          );
+                        }}
+                      >
+                        {site.visibility === "private" ? <Globe /> : <Lock />}
+                        Make it {site.visibility === "private" ? "public" : "private"}
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      {site.visibility === "private"
+                        ? "This page is private, so it only opens for someone holding the edit token. Claim it below to tie it to your account instead."
+                        : "Anyone with the link can open this page. Claim it below to make it private."}
+                    </p>
+                  )}
                 </section>
 
                 <Separator />
