@@ -148,6 +148,17 @@ Copy `VITE_CONVEX_URL` / `VITE_CONVEX_SITE_URL` from `packages/backend/.env.loca
 bun run dev          # web on http://localhost:3001 + convex dev
 ```
 
+## Deploying
+
+```bash
+bun run deploy          # Convex first, then the web app
+```
+
+Deploy the backend before the frontend, and use this script rather than deploying
+from the Vercel dashboard alone: `apps/web/vercel.json` sets its own `buildCommand`,
+which overrides the project's dashboard build command, so a web deploy does **not**
+push Convex. Deploying only the web app leaves the API on the previous release.
+
 ## Scripts
 
 - `bun run dev` — all apps in dev

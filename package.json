@@ -29,7 +29,10 @@
     "dev:server": "turbo -F @agent-drop/backend dev",
     "dev:setup": "turbo -F @agent-drop/backend dev:setup",
     "check": "oxlint && oxfmt --write",
-    "skill:sync": "bun run packages/backend/scripts/sync-skill.ts"
+    "skill:sync": "bun run packages/backend/scripts/sync-skill.ts",
+    "deploy": "bun run deploy:backend && bun run deploy:web",
+    "deploy:backend": "cd packages/backend && bunx convex deploy -y",
+    "deploy:web": "vercel deploy --prod --yes"
   },
   "dependencies": {
     "@agent-drop/env": "workspace:*",

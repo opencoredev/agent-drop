@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd ../.. && bun install",
+  "//": "buildCommand here overrides the project's dashboard setting, so the web build does NOT deploy Convex. Ship both with `bun run deploy` from the repo root, or the backend silently stays on the previous release.",
   "buildCommand": "bunx vite build"
 }
