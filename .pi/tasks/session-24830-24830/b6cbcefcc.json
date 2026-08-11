@@ -1,0 +1,18 @@
+{
+  "id": "b6cbcefcc",
+  "name": "Vercel prod deploy root",
+  "command": "cd /Users/leo/projects/agent-drop && vercel deploy --prod --yes --scope opencoredev",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-24830-24830/b6cbcefcc.output",
+  "cwd": "/Users/leo/projects/agent-drop",
+  "startTime": 1786483021054,
+  "endTime": 1786483051267,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 26991,
+  "bytesWritten": 11581,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
