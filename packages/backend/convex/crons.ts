@@ -13,4 +13,13 @@ crons.daily(
   {},
 );
 
+// Spent authorization codes and expired OAuth tokens, which otherwise pile up
+// one row per sign-in forever.
+crons.daily(
+  "cleanup expired oauth grants",
+  { hourUTC: 8, minuteUTC: 32 },
+  internal.oauth.cleanupExpiredGrants,
+  {},
+);
+
 export default crons;

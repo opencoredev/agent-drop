@@ -39,6 +39,12 @@ use the tools \`deploy_site\`, \`update_site\`, \`undo_site\`, \`redo_site\`, \`
 and \`delete_site\` instead of the curl calls below. Older clients that still send
 \`initialize\` are answered too.
 
+The endpoint requires authorization. An unauthenticated call answers \`401\` with a
+\`WWW-Authenticate\` header pointing at the OAuth metadata, so a client that speaks
+MCP authorization registers itself and opens a browser automatically. The person is
+then offered two ways through: connect an account, or continue without one. A
+client that cannot do OAuth may send an account key as the bearer token instead.
+
 Connect the harness you are running in:
 
 \`\`\`bash

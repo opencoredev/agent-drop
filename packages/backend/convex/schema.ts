@@ -61,6 +61,49 @@ export default defineSchema({
     .index("by_hash", ["keyHash"])
     .index("by_owner", ["ownerSubject"]),
 
+  // ---------------------------------------------------------------------
+  // OAuth 2.1, so an MCP client can act for a person instead of anonymously.
+  // We are both the authorization server and the resource server.
+  // ---------------------------------------------------------------------
+
+  // Clients that registered themselves (RFC 7591). Public clients only: they
+  // are installed applications that cannot keep a secret, so PKCE is required
+  // instead of client authentication.
+  oauthClients: defineTable({
+    clientId: v.string(),
+    clientName: v.string(),
+    redirectUris: v.array(v.string()),
+    createdAt: v.number(),
+  }).index("by_client_id", ["clientId"]),
+
+  // Authorization codes. Single use, short lived, bound to one PKCE challenge
+  // and one redirect URI.
+  oauthCodes: defineTable({
+    codeHash: v.string(),
+    clientId: v.string(),
+    redirectUri: v.string(),
+    codeChallenge: v.string(),
+    // Account user id, or a generated id for someone who chose to stay anonymous.
+    subject: v.string(),
+    anonymous: v.boolean(),
+    resource: v.optional(v.string()),
+    expiresAt: v.number(),
+  }).index("by_hash", ["codeHash"]),
+
+  // Issued tokens, stored only as hashes. `audience` is checked on every call so
+  // a token minted for something else cannot be replayed here.
+  oauthTokens: defineTable({
+    tokenHash: v.string(),
+    kind: v.union(v.literal("access"), v.literal("refresh")),
+    clientId: v.string(),
+    subject: v.string(),
+    anonymous: v.boolean(),
+    audience: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_hash", ["tokenHash"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   // Every R2 content object ever written for a site. The timeline only keeps the
   // most recent 50 versions, so once it prunes a node its R2 key is unreachable
   // from the timeline and would leak storage forever. This ledger is the record

@@ -15,6 +15,7 @@ import {
 import { r2 } from "./r2";
 import { rateLimiter } from "./rateLimiter";
 import { type ToolResult, type ToolRunner, handleMcpMessage, readMcpHeaders } from "./mcp";
+import { SCOPE, isAllowedRedirectShape, s256Challenge } from "./oauth";
 import { skillMarkdown } from "./skill";
 
 const http = httpRouter();
@@ -194,32 +195,54 @@ async function authorize(ctx: ActionCtx, slug: string, token: string | null): Pr
 }
 
 /**
- * Identify the caller of a deploy.
+ * Who is calling.
  *
- * An account key means there is a person behind the request, so the limit is
- * keyed to that account instead of an address, and the page it creates is owned:
- * private by default and kept for the longer window.
+ * `account` means a real person is behind the request, whether they presented an
+ * account key or an OAuth access token. The limit is keyed to them rather than
+ * an address, and pages they create are owned: private by default, kept for the
+ * longer window.
+ *
+ * `anonymous` is someone who went through the OAuth flow and chose not to sign
+ * in. There is still a stable subject to meter, but the pages stay temporary and
+ * unowned, exactly like an unauthenticated deploy.
  */
-async function identify(ctx: ActionCtx, request: Request) {
-  const presented = bearerToken(request);
-  if (!presented) return null;
-  const key = await ctx.runQuery(internal.sites.resolveApiKey, {
-    keyHash: await sha256Hex(presented),
-  });
-  if (!key) return null;
-  await ctx.runMutation(internal.sites.touchApiKey, { id: key.id });
-  return { ownerSubject: key.ownerSubject };
+type Caller = { kind: "account"; subject: string } | { kind: "anonymous"; subject: string } | null;
+
+function ownerOf(caller: Caller): { ownerSubject: string } | null {
+  return caller?.kind === "account" ? { ownerSubject: caller.subject } : null;
 }
 
-async function opDeploy(
-  ctx: ActionCtx,
-  rateKey: string,
-  body: unknown,
-  owner: { ownerSubject: string } | null,
-) {
+async function identify(ctx: ActionCtx, request: Request): Promise<Caller> {
+  const presented = bearerToken(request);
+  if (!presented) return null;
+  const hash = await sha256Hex(presented);
+
+  // An OAuth access token, which must have been minted for this resource.
+  const token = await ctx.runQuery(internal.oauth.resolveToken, { tokenHash: hash });
+  if (token && token.kind === "access") {
+    if (token.audience !== mcpResource()) return null;
+    return token.anonymous
+      ? { kind: "anonymous", subject: token.subject }
+      : { kind: "account", subject: token.subject };
+  }
+
+  // A long-lived account key pasted into a client config.
+  const key = await ctx.runQuery(internal.sites.resolveApiKey, { keyHash: hash });
+  if (key) {
+    await ctx.runMutation(internal.sites.touchApiKey, { id: key.id });
+    return { kind: "account", subject: key.ownerSubject };
+  }
+
+  return null;
+}
+
+async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown, caller: Caller) {
+  const owner = ownerOf(caller);
+  // An anonymous OAuth subject is still a better meter than an IP address.
+  const anonymousKey = caller?.kind === "anonymous" ? caller.subject : rateKey;
   const limit = owner
     ? await rateLimiter.limit(ctx, "createSiteAuthed", { key: owner.ownerSubject })
-    : await rateLimiter.limit(ctx, "createSite", { key: rateKey });
+    : await rateLimiter.limit(ctx, "createSite", { key: anonymousKey });
   if (!limit.ok) {
     return {
       error: owner
@@ -582,6 +605,153 @@ const skill = httpAction(async () => {
 });
 
 // ---------------------------------------------------------------------------
+// OAuth 2.1 — this deployment is both authorization server and resource server
+// ---------------------------------------------------------------------------
+
+/** The protected resource an access token must be scoped to. */
+function mcpResource(): string {
+  return `${siteBase()}/mcp`;
+}
+
+const protectedResourceMetadata = httpAction(async () =>
+  json({
+    resource: mcpResource(),
+    authorization_servers: [siteBase()],
+    bearer_methods_supported: ["header"],
+    scopes_supported: [SCOPE],
+    resource_documentation: `${siteBase()}/agentdrop-skill.md`,
+  }),
+);
+
+const authorizationServerMetadata = httpAction(async () =>
+  json({
+    issuer: siteBase(),
+    // The consent screen is a page in the web app; everything else is here.
+    authorization_endpoint: `${appBase()}/oauth/authorize`,
+    token_endpoint: `${siteBase()}/oauth/token`,
+    registration_endpoint: `${siteBase()}/oauth/register`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code", "refresh_token"],
+    code_challenge_methods_supported: ["S256"],
+    token_endpoint_auth_methods_supported: ["none"],
+    scopes_supported: [SCOPE],
+  }),
+);
+
+/** RFC 7591 dynamic client registration. Public clients, PKCE required. */
+const oauthRegister = httpAction(async (ctx, request) => {
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid_client_metadata" }, 400);
+  }
+
+  const uris = Array.isArray(body.redirect_uris) ? body.redirect_uris : [];
+  const redirectUris = uris.filter((u): u is string => typeof u === "string");
+  if (redirectUris.length === 0) {
+    return json(
+      { error: "invalid_redirect_uri", error_description: "redirect_uris required" },
+      400,
+    );
+  }
+  if (!redirectUris.every(isAllowedRedirectShape)) {
+    return json(
+      { error: "invalid_redirect_uri", error_description: "Unsupported redirect URI." },
+      400,
+    );
+  }
+
+  const { clientId } = await ctx.runMutation(internal.oauth.registerClient, {
+    clientName: typeof body.client_name === "string" ? body.client_name : "MCP client",
+    redirectUris,
+  });
+
+  return json(
+    {
+      client_id: clientId,
+      client_name: typeof body.client_name === "string" ? body.client_name : "MCP client",
+      redirect_uris: redirectUris,
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+    },
+    201,
+  );
+});
+
+function formValue(form: URLSearchParams, key: string): string {
+  return (form.get(key) ?? "").trim();
+}
+
+const oauthToken = httpAction(async (ctx, request) => {
+  const form = new URLSearchParams(await request.text());
+  const grantType = formValue(form, "grant_type");
+  const clientId = formValue(form, "client_id");
+  if (!clientId) return json({ error: "invalid_client" }, 401);
+
+  if (grantType === "authorization_code") {
+    const code = formValue(form, "code");
+    const verifier = formValue(form, "code_verifier");
+    const redirectUri = formValue(form, "redirect_uri");
+    if (!code || !verifier) return json({ error: "invalid_request" }, 400);
+
+    const redeemed = await ctx.runMutation(internal.oauth.redeemCode, {
+      codeHash: await sha256Hex(code),
+      clientId,
+      redirectUri,
+    });
+    if ("error" in redeemed) return json({ error: redeemed.error }, 400);
+
+    // PKCE: the code is only useful to whoever started the flow.
+    if ((await s256Challenge(verifier)) !== redeemed.codeChallenge) {
+      return json({ error: "invalid_grant", error_description: "PKCE verification failed." }, 400);
+    }
+
+    const tokens = await ctx.runMutation(internal.oauth.issueTokens, {
+      clientId,
+      subject: redeemed.subject,
+      anonymous: redeemed.anonymous,
+      audience: redeemed.resource ?? mcpResource(),
+    });
+    return json({
+      access_token: tokens.accessToken,
+      token_type: "Bearer",
+      expires_in: tokens.expiresIn,
+      refresh_token: tokens.refreshToken,
+      scope: SCOPE,
+    });
+  }
+
+  if (grantType === "refresh_token") {
+    const presented = formValue(form, "refresh_token");
+    if (!presented) return json({ error: "invalid_request" }, 400);
+    const spent = await ctx.runMutation(internal.oauth.consumeRefreshToken, {
+      tokenHash: await sha256Hex(presented),
+      clientId,
+    });
+    if ("error" in spent) return json({ error: spent.error }, 400);
+
+    const tokens = await ctx.runMutation(internal.oauth.issueTokens, {
+      clientId,
+      subject: spent.subject,
+      anonymous: spent.anonymous,
+      audience: spent.audience,
+    });
+    return json({
+      access_token: tokens.accessToken,
+      token_type: "Bearer",
+      expires_in: tokens.expiresIn,
+      refresh_token: tokens.refreshToken,
+      scope: SCOPE,
+    });
+  }
+
+  return json({ error: "unsupported_grant_type" }, 400);
+});
+
+// ---------------------------------------------------------------------------
 // POST /mcp — stateless MCP server (Streamable HTTP)
 // ---------------------------------------------------------------------------
 
@@ -593,11 +763,7 @@ function toolFailure(value: OpError): ToolResult {
   return { text: value.error, isError: true };
 }
 
-function mcpRunner(
-  ctx: ActionCtx,
-  request: Request,
-  owner: { ownerSubject: string } | null,
-): ToolRunner {
+function mcpRunner(ctx: ActionCtx, request: Request, caller: Caller): ToolRunner {
   const ip = clientIp(request);
 
   return async (name, args) => {
@@ -606,7 +772,7 @@ function mcpRunner(
 
     switch (name) {
       case "deploy_site": {
-        const out = await opDeploy(ctx, ip, args, owner);
+        const out = await opDeploy(ctx, ip, args, caller);
         return isOpError(out) ? toolFailure(out) : toolText(out);
       }
       case "update_site": {
@@ -640,13 +806,34 @@ const mcpPost = httpAction(async (ctx, request) => {
     return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400);
   }
 
-  // An MCP client can present an account key as a bearer token today; once the
-  // OAuth flow lands this is where the access token will resolve instead.
-  const owner = await identify(ctx, request);
+  const caller = await identify(ctx, request);
+  if (!caller) {
+    // Point the client at the metadata that tells it where to authorize. A
+    // compliant MCP client turns this into a browser sign-in and retries.
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32001, message: "Authorization required." },
+      }),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "WWW-Authenticate":
+            `Bearer realm="agentdrop", ` +
+            `resource_metadata="${siteBase()}/.well-known/oauth-protected-resource", ` +
+            `scope="${SCOPE}"`,
+          ...MCP_CORS,
+        },
+      },
+    );
+  }
+
   const reply = await handleMcpMessage(
     body,
     readMcpHeaders(request),
-    mcpRunner(ctx, request, owner),
+    mcpRunner(ctx, request, caller),
   );
   if (reply.body === null) return new Response(null, { status: reply.status, headers: MCP_CORS });
   return json(reply.body, reply.status, MCP_CORS);
@@ -693,6 +880,28 @@ http.route({ pathPrefix: "/s/", method: "GET", handler: shortRedirect });
 
 http.route({ path: "/agentdrop-skill.md", method: "GET", handler: skill });
 http.route({ path: "/agentdrop-skill.md", method: "OPTIONS", handler: preflight });
+
+http.route({ path: "/oauth/register", method: "POST", handler: oauthRegister });
+http.route({ path: "/oauth/register", method: "OPTIONS", handler: mcpPreflight });
+http.route({ path: "/oauth/token", method: "POST", handler: oauthToken });
+http.route({ path: "/oauth/token", method: "OPTIONS", handler: mcpPreflight });
+
+http.route({
+  path: "/.well-known/oauth-protected-resource",
+  method: "GET",
+  handler: protectedResourceMetadata,
+});
+// Clients also probe the variant with the endpoint path appended.
+http.route({
+  path: "/.well-known/oauth-protected-resource/mcp",
+  method: "GET",
+  handler: protectedResourceMetadata,
+});
+http.route({
+  path: "/.well-known/oauth-authorization-server",
+  method: "GET",
+  handler: authorizationServerMetadata,
+});
 
 http.route({ path: "/mcp", method: "POST", handler: mcpPost });
 http.route({ path: "/mcp", method: "GET", handler: mcpGone });
