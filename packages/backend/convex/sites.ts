@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   type MutationCtx,
   type QueryCtx,
@@ -13,7 +13,11 @@ import { authComponent } from "./auth";
 import { sha256Hex, siteExpiry } from "./lib";
 import { r2 } from "./r2";
 import { siteKind } from "./schema";
-import { type SiteVersion, timeline } from "./timeline";
+import { MAX_VERSIONS, type SiteVersion, timeline } from "./timeline";
+
+/** How many stale content objects one update may clean up. Keeps the mutation
+ * cheap while still draining any backlog over successive updates. */
+const PRUNE_BATCH = 5;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -26,21 +30,70 @@ async function bySlug(ctx: QueryCtx, slug: string): Promise<Doc<"sites"> | null>
     .unique();
 }
 
+/**
+ * A site that has not expired yet. Cleanup is a once-a-day cron, so a row can
+ * outlive its own `expiresAt` by up to a day; serving or editing it in that
+ * window would break the retention promise and let a token holder revive a page
+ * that was supposed to be gone. Every read and auth path goes through this.
+ */
+async function liveBySlug(ctx: QueryCtx, slug: string): Promise<Doc<"sites"> | null> {
+  const site = await bySlug(ctx, slug);
+  if (!site || site.expiresAt <= Date.now()) return null;
+  return site;
+}
+
+/** Record an R2 content object so purge can delete it even after the timeline
+ * has pruned the version that referenced it. */
+async function trackObject(ctx: MutationCtx, siteId: Id<"sites">, key: string): Promise<void> {
+  await ctx.db.insert("siteObjects", { siteId, key, createdAt: Date.now() });
+}
+
+/** Drop content objects that fell out of the retained history. The timeline keeps
+ * MAX_VERSIONS nodes, so anything older can never be reached by undo again. One
+ * update adds one object, so trimming a small batch per update holds steady. */
+async function pruneObjects(ctx: MutationCtx, siteId: Id<"sites">): Promise<void> {
+  const tracked = await ctx.db
+    .query("siteObjects")
+    .withIndex("by_site", (q) => q.eq("siteId", siteId))
+    .order("asc")
+    .take(MAX_VERSIONS + PRUNE_BATCH);
+  const excess = tracked.length - MAX_VERSIONS;
+  if (excess <= 0) return;
+
+  for (const row of tracked.slice(0, excess)) {
+    try {
+      await r2.deleteObject(ctx, row.key);
+    } catch {
+      // Leave the ledger row in place so a later update retries the delete.
+      continue;
+    }
+    await ctx.db.delete(row._id);
+  }
+}
+
 function isSiteVersion(value: unknown): value is SiteVersion {
   return typeof value === "object" && value !== null && "key" in value;
 }
 
-/** Delete a site and every R2 object + timeline node belonging to it. */
+/** Delete a site and every R2 object + timeline node belonging to it. The object
+ * ledger is the source of truth for content keys, so versions the timeline has
+ * already pruned are deleted too. */
 async function purgeSite(ctx: MutationCtx, site: Doc<"sites">): Promise<void> {
-  const keys = new Set<string>([site.currentKey]);
-  const nodes = await timeline.listNodes(ctx, site.scope);
-  for (const node of nodes) {
-    if (isSiteVersion(node.document)) keys.add(node.document.key);
-  }
+  const tracked = await ctx.db
+    .query("siteObjects")
+    .withIndex("by_site", (q) => q.eq("siteId", site._id))
+    .collect();
   const images = await ctx.db
     .query("siteImages")
     .withIndex("by_site", (q) => q.eq("siteId", site._id))
     .collect();
+
+  // currentKey is included for sites deployed before the ledger existed.
+  const keys = new Set<string>([site.currentKey]);
+  for (const row of tracked) keys.add(row.key);
+  for (const node of await timeline.listNodes(ctx, site.scope)) {
+    if (isSiteVersion(node.document)) keys.add(node.document.key);
+  }
   for (const img of images) keys.add(img.key);
 
   for (const key of keys) {
@@ -50,6 +103,7 @@ async function purgeSite(ctx: MutationCtx, site: Doc<"sites">): Promise<void> {
       // Object may already be gone; deleting metadata below is what matters.
     }
   }
+  for (const row of tracked) await ctx.db.delete(row._id);
   for (const img of images) await ctx.db.delete(img._id);
   await timeline.deleteScope(ctx, site.scope);
   await ctx.db.delete(site._id);
@@ -59,11 +113,11 @@ async function purgeSite(ctx: MutationCtx, site: Doc<"sites">): Promise<void> {
 // Public queries (used by the web app)
 // ---------------------------------------------------------------------------
 
-/** Reactive metadata for the viewer. Returns `null` for unknown slugs. */
+/** Reactive metadata for the viewer. Returns `null` for unknown or expired slugs. */
 export const getBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
-    const site = await bySlug(ctx, slug);
+    const site = await liveBySlug(ctx, slug);
     if (!site) return null;
     const status = await timeline.status(ctx, site.scope);
     const siteUrl = process.env.CONVEX_SITE_URL ?? "";
@@ -122,7 +176,7 @@ export const claim = mutation({
   handler: async (ctx, { slug, editToken }) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) throw new Error("You must be signed in to claim a site.");
-    const site = await bySlug(ctx, slug);
+    const site = await liveBySlug(ctx, slug);
     if (!site) throw new Error("Site not found.");
     if (site.editTokenHash !== (await sha256Hex(editToken))) {
       throw new Error("Invalid edit token for this site.");
@@ -143,20 +197,27 @@ export const slugExists = internalQuery({
   handler: async (ctx, { slug }) => (await bySlug(ctx, slug)) !== null,
 });
 
-/** Verify a bearer token against a slug; returns site identity on success. */
+/**
+ * Verify a bearer token against a slug. The caller needs to tell a gone site
+ * apart from a wrong token, otherwise an agent retries forever against a page
+ * that expired.
+ */
 export const authBySlug = internalQuery({
   args: { slug: v.string(), tokenHash: v.string() },
   handler: async (ctx, { slug, tokenHash }) => {
-    const site = await bySlug(ctx, slug);
-    if (!site || site.editTokenHash !== tokenHash) return null;
-    return { siteId: site._id, slug: site.slug, scope: site.scope };
+    const site = await liveBySlug(ctx, slug);
+    if (!site) return { ok: false as const, reason: "missing" as const };
+    if (site.editTokenHash !== tokenHash) {
+      return { ok: false as const, reason: "forbidden" as const };
+    }
+    return { ok: true as const, siteId: site._id, slug: site.slug, scope: site.scope };
   },
 });
 
 export const rawInfoBySlug = internalQuery({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
-    const site = await bySlug(ctx, slug);
+    const site = await liveBySlug(ctx, slug);
     if (!site) return null;
     return { key: site.currentKey, kind: site.kind, contentType: site.contentType };
   },
@@ -165,7 +226,7 @@ export const rawInfoBySlug = internalQuery({
 export const statusBySlug = internalQuery({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
-    const site = await bySlug(ctx, slug);
+    const site = await liveBySlug(ctx, slug);
     if (!site) return null;
     const status = await timeline.status(ctx, site.scope);
     return {
@@ -249,6 +310,7 @@ export const recordDeploy = internalMutation({
       createdAt: a.now,
     };
     await timeline.push(ctx, a.scope, version);
+    await trackObject(ctx, siteId, a.key);
     return { siteId };
   },
 });
@@ -263,7 +325,7 @@ export const recordUpdate = internalMutation({
     byteSize: v.number(),
   },
   handler: async (ctx, a) => {
-    const site = await bySlug(ctx, a.slug);
+    const site = await liveBySlug(ctx, a.slug);
     if (!site) throw new Error("not-found");
     const now = Date.now();
     await ctx.db.patch(site._id, {
@@ -284,6 +346,8 @@ export const recordUpdate = internalMutation({
       createdAt: now,
     };
     await timeline.push(ctx, site.scope, version);
+    await trackObject(ctx, site._id, a.key);
+    await pruneObjects(ctx, site._id);
     return { ok: true };
   },
 });
@@ -299,7 +363,7 @@ async function step(
   version: number | null;
   versions: number;
 }> {
-  const site = await bySlug(ctx, slug);
+  const site = await liveBySlug(ctx, slug);
   if (!site) return null;
   const state =
     direction === "undo"

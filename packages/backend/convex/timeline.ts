@@ -13,9 +13,12 @@ export type SiteVersion = {
   createdAt: number;
 };
 
-// Keep the most recent 50 versions per site; older ones are pruned.
+// Keep the most recent 50 versions per site; older ones are pruned. `sites.ts`
+// trims the matching R2 objects to the same bound, so the two stay in step.
+export const MAX_VERSIONS = 50;
+
 export const timeline = new Timeline(components.timeline, {
-  maxNodesPerScope: 50,
+  maxNodesPerScope: MAX_VERSIONS,
 });
 
 export function siteScope(slug: string): string {

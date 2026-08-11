@@ -33,6 +33,16 @@ export default defineSchema({
     .index("by_expiresAt", ["expiresAt"])
     .index("by_owner", ["ownerSubject"]),
 
+  // Every R2 content object ever written for a site. The timeline only keeps the
+  // most recent 50 versions, so once it prunes a node its R2 key is unreachable
+  // from the timeline and would leak storage forever. This ledger is the record
+  // that lets update-time pruning and purge delete every object we created.
+  siteObjects: defineTable({
+    siteId: v.id("sites"),
+    key: v.string(),
+    createdAt: v.number(),
+  }).index("by_site", ["siteId", "createdAt"]),
+
   // Images uploaded for a site, stored in R2. Images always expire after 7 days
   // regardless of whether the site is claimed.
   siteImages: defineTable({

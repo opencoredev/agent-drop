@@ -55,9 +55,25 @@ function siteBase(): string {
   return process.env.CONVEX_SITE_URL ?? "";
 }
 
+/**
+ * Best available caller identity for rate limiting.
+ *
+ * `x-forwarded-for` is a list the client can seed: anything a caller sends ends
+ * up at the front, and each proxy appends. Reading the first entry therefore
+ * hands the caller a fresh limiter bucket per request. The last entry is the one
+ * written by the proxy in front of us, so that is the only value here we did not
+ * let the caller choose.
+ */
 function clientIp(request: Request): string {
   const fwd = request.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
+  if (fwd) {
+    const hops = fwd
+      .split(",")
+      .map((hop) => hop.trim())
+      .filter(Boolean);
+    const nearest = hops[hops.length - 1];
+    if (nearest) return nearest;
+  }
   return request.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
@@ -145,9 +161,21 @@ function isOpError(value: unknown): value is OpError {
   return typeof value === "object" && value !== null && "error" in value;
 }
 
-async function authorize(ctx: ActionCtx, slug: string, token: string | null) {
-  if (!token) return null;
-  return await ctx.runQuery(internal.sites.authBySlug, { slug, tokenHash: await sha256Hex(token) });
+const GONE = { error: "Site not found. It may have expired or been deleted.", status: 404 };
+const BAD_TOKEN = { error: "Invalid edit token for this site.", status: 403 };
+
+type SiteAuth = { siteId: Id<"sites">; slug: string; scope: string };
+type AuthGate = { error: OpError; auth?: undefined } | { auth: SiteAuth; error?: undefined };
+
+/** Resolve a bearer token to a site, or the error to return for it. */
+async function authorize(ctx: ActionCtx, slug: string, token: string | null): Promise<AuthGate> {
+  if (!token) return { error: BAD_TOKEN };
+  const result = await ctx.runQuery(internal.sites.authBySlug, {
+    slug,
+    tokenHash: await sha256Hex(token),
+  });
+  if (!result.ok) return { error: result.reason === "missing" ? GONE : BAD_TOKEN };
+  return { auth: result };
 }
 
 async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
@@ -197,8 +225,9 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown) {
 }
 
 async function opUpdate(ctx: ActionCtx, slug: string, token: string | null, body: unknown) {
-  const auth = await authorize(ctx, slug, token);
-  if (!auth) return { error: "Invalid edit token for this site.", status: 403 };
+  const gate = await authorize(ctx, slug, token);
+  if ("error" in gate) return gate.error;
+  const auth = gate.auth;
 
   const limit = await rateLimiter.limit(ctx, "updateSite", { key: auth.scope });
   if (!limit.ok) {
@@ -228,8 +257,8 @@ async function opHistory(
   token: string | null,
   direction: "undo" | "redo",
 ) {
-  const auth = await authorize(ctx, slug, token);
-  if (!auth) return { error: "Invalid edit token for this site.", status: 403 };
+  const gate = await authorize(ctx, slug, token);
+  if ("error" in gate) return gate.error;
   const applied =
     direction === "undo"
       ? await ctx.runMutation(internal.sites.applyUndo, { slug })
@@ -244,8 +273,8 @@ async function opStatus(ctx: ActionCtx, slug: string) {
 }
 
 async function opDelete(ctx: ActionCtx, slug: string, token: string | null) {
-  const auth = await authorize(ctx, slug, token);
-  if (!auth) return { error: "Invalid edit token for this site.", status: 403 };
+  const gate = await authorize(ctx, slug, token);
+  if ("error" in gate) return gate.error;
   await ctx.runMutation(internal.sites.purgeBySlug, { slug });
   return { ok: true, deleted: slug };
 }
@@ -285,12 +314,9 @@ async function requireSite(
   if (!token) {
     return { error: fail(401, "Missing 'Authorization: Bearer <editToken>' header.") };
   }
-  const auth = await ctx.runQuery(internal.sites.authBySlug, {
-    slug,
-    tokenHash: await sha256Hex(token),
-  });
-  if (!auth) return { error: fail(403, "Invalid edit token for this site.") };
-  return { auth };
+  const gate = await authorize(ctx, slug, token);
+  if (gate.error) return { error: fail(gate.error.status, gate.error.error) };
+  return { auth: gate.auth };
 }
 
 const sitesGet = httpAction(async (ctx, request) => {
