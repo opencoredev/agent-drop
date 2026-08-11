@@ -1,52 +1,33 @@
-import { cn } from "@agent-drop/ui/lib/utils";
+import { Button } from "@agent-drop/ui/components/button";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-const OPTIONS = [
-  { value: "light", label: "Light", Icon: SunIcon },
-  { value: "system", label: "System", Icon: MonitorIcon },
-  { value: "dark", label: "Dark", Icon: MoonIcon },
-] as const;
+const ORDER = ["system", "light", "dark"] as const;
+const LABEL = { system: "System theme", light: "Light theme", dark: "Dark theme" } as const;
 
-/** Light / system / dark, as one segmented control. `system` is a real choice
- * here, not just the default, so the page can follow the OS. */
+/** One button that steps through system, light, dark. The icon shows the current
+ * choice, so the control takes one slot instead of three. */
 export function ThemeToggle() {
-  // next-themes only knows the stored choice on the client; render the track
-  // unselected on the server to avoid a hydration mismatch.
+  // next-themes only knows the stored choice on the client; render a stable icon
+  // on the server to avoid a hydration mismatch.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const { theme, setTheme } = useTheme();
 
+  const current = mounted && theme ? ((theme as (typeof ORDER)[number]) ?? "system") : "system";
+  const next = ORDER[(ORDER.indexOf(current) + 1) % ORDER.length]!;
+  const Icon = current === "light" ? SunIcon : current === "dark" ? MoonIcon : MonitorIcon;
+
   return (
-    <div
-      role="radiogroup"
-      aria-label="Color theme"
-      className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/60 p-0.5"
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={`${LABEL[current]}. Switch to ${LABEL[next].toLowerCase()}`}
+      title={LABEL[current]}
+      onClick={() => setTheme(next)}
     >
-      {OPTIONS.map(({ value, label, Icon }) => {
-        const active = mounted && theme === value;
-        return (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={label}
-            title={label}
-            onClick={() => setTheme(value)}
-            className={cn(
-              "flex size-7 cursor-pointer items-center justify-center rounded-full outline-none transition-colors",
-              "focus-visible:ring-2 focus-visible:ring-ring",
-              active
-                ? "bg-background text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Icon className="size-3.5" strokeWidth={2} />
-          </button>
-        );
-      })}
-    </div>
+      <Icon />
+    </Button>
   );
 }

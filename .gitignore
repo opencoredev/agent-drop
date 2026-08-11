@@ -55,3 +55,6 @@ temp
 
 # Vercel
 .vercel
+
+# Local agent task logs
+.pi/

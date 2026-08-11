@@ -1,6 +1,7 @@
-import { SKILL_URL } from "@/lib/agentdrop";
+import { REPO_URL, SKILL_URL } from "@/lib/agentdrop";
 
 import { ConvexBadge } from "./convex-badge";
+import { GitHubMark } from "./github-mark";
 import { Wordmark } from "./wordmark";
 
 export function Footer() {
@@ -18,12 +19,13 @@ export function Footer() {
             Agent skill
           </a>
           <a
-            href="https://github.com/get-convex/r2"
+            href={REPO_URL}
             target="_blank"
             rel="noreferrer noopener"
-            className="transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
           >
-            R2 component
+            <GitHubMark className="size-3.5" />
+            Source
           </a>
           <ConvexBadge />
         </div>

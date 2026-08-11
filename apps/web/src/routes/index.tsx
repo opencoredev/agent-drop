@@ -7,7 +7,7 @@ import { GetStartedDialog } from "@/components/get-started-dialog";
 import { McpInstall } from "@/components/mcp-install";
 import { Nav } from "@/components/nav";
 import { LivePill } from "@/components/wordmark";
-import { INSTALL_COMMAND, SKILL_URL } from "@/lib/agentdrop";
+import { INSTALL_COMMAND, RETENTION, SKILL_URL } from "@/lib/agentdrop";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -24,11 +24,11 @@ const FACTS = [
   },
   {
     title: "No account needed",
-    body: "You get a secret edit token back instead. Sign in later only if you want to keep a site around.",
+    body: "You get a secret edit token back instead. Sign in later only if you want to keep a page around.",
   },
   {
-    title: "Pages clean themselves up",
-    body: "Anonymous sites last 30 days. Claim one and it lasts 90. Nothing to cancel.",
+    title: "Pages expire on purpose",
+    body: `Published without an account, a page is deleted after ${RETENTION.anonymousDays} days. Claim it and that becomes ${RETENTION.claimedDays}.`,
   },
 ];
 
@@ -86,6 +86,38 @@ function Landing() {
                 <p className="mt-2 text-muted-foreground text-sm leading-relaxed">{f.body}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-4xl px-5 pb-16">
+          <div className="rounded-2xl border border-dashed px-6 py-7 sm:px-8">
+            <h2 className="font-semibold text-[1.05rem] tracking-tight">
+              How long a page stays up
+            </h2>
+            <dl className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="font-medium">Published anonymously</dt>
+                <dd className="mt-0.5 text-muted-foreground">
+                  Deleted {RETENTION.anonymousDays} days after the last update.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">Claimed with an account</dt>
+                <dd className="mt-0.5 text-muted-foreground">
+                  Deleted {RETENTION.claimedDays} days after the last update.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">Uploaded images</dt>
+                <dd className="mt-0.5 text-muted-foreground">
+                  Always deleted after {RETENTION.imageDays} days.
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
+              Deletion is permanent and there is no recovery, so treat a page as temporary until you
+              claim it. Every page shows its own expiry date on the manage screen.
+            </p>
           </div>
         </section>
 

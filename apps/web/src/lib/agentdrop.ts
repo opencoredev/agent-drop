@@ -9,6 +9,17 @@ export const SKILL_URL = `${API_BASE}/agentdrop-skill.md`;
 /** The repo that skills.sh installs from. */
 export const SKILL_REPO = "opencoredev/agent-drop";
 
+/** Source, since the whole thing is open source. */
+export const REPO_URL = `https://github.com/${SKILL_REPO}`;
+
+/** How long a page lives. Stated in one place so the site never contradicts the
+ * API about when something gets deleted. */
+export const RETENTION = {
+  anonymousDays: 30,
+  claimedDays: 90,
+  imageDays: 7,
+} as const;
+
 /** One-line install, handled by the skills CLI (skills.sh). */
 export const INSTALL_COMMAND = `npx skills add ${SKILL_REPO}`;
 

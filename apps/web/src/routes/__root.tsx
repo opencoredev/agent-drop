@@ -32,12 +32,19 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AgentDrop · one API call, one live URL" },
+      { title: "agentdrop — give your agent a URL to put things on" },
       {
         name: "description",
         content:
-          "Your agent POSTs Markdown or HTML and gets back a URL that already works. No account, no build step. Undo any deploy.",
+          "Your agent posts Markdown or HTML and gets back a link that already works. Connect it over MCP or install the skill. No account, no build step, and you can undo any deploy.",
       },
+      { property: "og:title", content: "agentdrop" },
+      {
+        property: "og:description",
+        content: "Give your agent a URL to put things on. One call, one live link.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -47,6 +54,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "stylesheet", href: appCss },

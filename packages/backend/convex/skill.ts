@@ -66,11 +66,14 @@ AgentDrop also rejects obvious credentials, but you are the first line of defens
 curl -X POST ${base}/api/v1/sites \\
   -H "Content-Type: application/json" \\
   -d '{
-    "kind": "markdown",            # "markdown" or "html"
+    "kind": "markdown",
     "title": "Optional title",
     "content": "# Hello\\n\\nMarkdown or a full HTML document."
   }'
 \`\`\`
+
+\`kind\` is \`"markdown"\` or \`"html"\`, \`title\` is optional, and the body is plain JSON:
+do not put comments inside it.
 
 Response:
 

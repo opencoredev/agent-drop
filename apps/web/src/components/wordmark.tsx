@@ -1,20 +1,17 @@
 import { cn } from "@agent-drop/ui/lib/utils";
 
-/** The AgentDrop mark: a green tile with an arrow going down into it. Two
- * shapes, no gradient, no detail that falls apart at 16px. */
+/** The AgentDrop mark: a green tile with an arrow dropping onto a line. Filled
+ * geometry only, identical to public/favicon.svg, so the icon rasterizes the
+ * same way everywhere and holds up at 16px. */
 export function Mark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={cn("size-6", className)} aria-hidden="true">
       <rect width="24" height="24" rx="7" className="fill-primary" />
-      <path
-        d="M12 6v8m0 0 3.2-3.2M12 14l-3.2-3.2M7.5 17.5h9"
-        fill="none"
-        stroke="currentColor"
-        className="text-primary-foreground"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <g className="fill-primary-foreground">
+        <rect x="10.9" y="5" width="2.2" height="7.2" rx="1.1" />
+        <path d="M12 15.4 7.6 10.6h8.8z" />
+        <rect x="6.9" y="16.6" width="10.2" height="2.2" rx="1.1" />
+      </g>
     </svg>
   );
 }
