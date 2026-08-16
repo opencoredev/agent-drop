@@ -5,7 +5,9 @@ import { internal } from "./_generated/api";
 const crons = cronJobs();
 
 // Daily sweep that deletes expired images (7d) and expired sites (30d anon /
-// 90d claimed), including their R2 objects and timeline history.
+// 90d claimed), including their R2 objects and timeline history. The mutation
+// self-schedules while a batch is saturated so a backlog does not wait another
+// day; failed R2 deletes are retried without dropping ledger keys.
 crons.daily(
   "cleanup expired sites and images",
   { hourUTC: 8, minuteUTC: 17 },
