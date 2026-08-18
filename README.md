@@ -1,4 +1,10 @@
 <p align="center">
+  <img alt="AgentDrop" src="./apps/web/public/favicon.svg" width="64" height="64" />
+</p>
+
+<h1 align="center">AgentDrop</h1>
+
+<p align="center">
   <a href="https://www.agent-drop.co"><img alt="agent-drop.co" src="https://shieldcn.dev/badge/agent-drop.co.svg?variant=secondary&mode=dark" /></a>
   <a href="https://github.com/opencoredev/agent-drop/stargazers"><img alt="GitHub stars" src="https://shieldcn.dev/github/opencoredev/agent-drop/stars.svg?variant=branded&mode=dark" /></a>
   <a href="https://x.com/leodev"><img alt="Follow @leodev on X" src="https://shieldcn.dev/x/follow/leodev.svg?variant=branded&mode=dark" /></a>
