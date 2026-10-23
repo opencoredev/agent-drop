@@ -1,8 +1,12 @@
 import { REPO_URL, SKILL_URL } from "@/lib/agentdrop";
+import { otherOpenCoreSites } from "@/lib/opencore-sites";
 
 import { ConvexBadge } from "./convex-badge";
 import { GitHubMark } from "./github-mark";
 import { Wordmark } from "./wordmark";
+
+// Plain followed links on purpose: they share authority between our sites.
+const OPENCORE_LINKS = otherOpenCoreSites("https://www.agent-drop.co");
 
 export function Footer() {
   return (
@@ -29,6 +33,25 @@ export function Footer() {
           </a>
           <ConvexBadge />
         </div>
+      </div>
+      <div className="mx-auto max-w-5xl px-5">
+        <nav
+          aria-labelledby="footer-opencore-label"
+          className="flex flex-col gap-4 border-border/70 border-t py-8"
+        >
+          <span id="footer-opencore-label" className="font-medium text-foreground text-sm">
+            More from OpenCore
+          </span>
+          <ul className="grid gap-x-6 gap-y-2.5 text-muted-foreground text-sm sm:grid-cols-2 md:grid-cols-3">
+            {OPENCORE_LINKS.map((site) => (
+              <li key={site.url}>
+                <a href={site.url} className="transition-colors hover:text-foreground">
+                  <span className="text-foreground">{site.name}</span> {site.description}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
     </footer>
   );
