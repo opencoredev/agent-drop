@@ -53,6 +53,9 @@ coverage
 tmp
 temp
 
+# Local Cloudflare / wrangler state (never commit)
+.wrangler/
+
 # Vercel
 .vercel
 

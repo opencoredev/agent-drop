@@ -14,6 +14,7 @@
 
 import { v } from "convex/values";
 
+import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { authComponent } from "./auth";
 import { generateEditToken, sha256Hex } from "./lib";
@@ -221,27 +222,35 @@ export const consumeRefreshToken = internalMutation({
   },
 });
 
-/** Drop expired codes and tokens. Called by the daily cron. */
+/** Drop expired codes and tokens. Called by the daily cron; self-schedules
+ * while a batch is full so a busy day cannot leave a permanent backlog. */
 export const cleanupExpiredGrants = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
+    const TOKEN_BATCH = 200;
+    const CODE_BATCH = 200;
+    let saturated = false;
+
     const tokens = await ctx.db
       .query("oauthTokens")
       .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
-      .take(200);
+      .take(TOKEN_BATCH);
     for (const row of tokens) await ctx.db.delete(row._id);
+    if (tokens.length === TOKEN_BATCH) saturated = true;
 
-    // Codes live five minutes, so a small sweep is always enough.
-    const codes = await ctx.db.query("oauthCodes").take(100);
-    let removed = 0;
-    for (const row of codes) {
-      if (row.expiresAt <= now) {
-        await ctx.db.delete(row._id);
-        removed++;
-      }
+    const codes = await ctx.db
+      .query("oauthCodes")
+      .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
+      .take(CODE_BATCH);
+    for (const row of codes) await ctx.db.delete(row._id);
+    if (codes.length === CODE_BATCH) saturated = true;
+
+    if (saturated) {
+      await ctx.scheduler.runAfter(0, internal.oauth.cleanupExpiredGrants, {});
     }
-    return { tokens: tokens.length, codes: removed };
+
+    return { tokens: tokens.length, codes: codes.length, saturated };
   },
 });
 

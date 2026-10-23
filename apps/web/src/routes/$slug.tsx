@@ -8,12 +8,23 @@ import { SiteViewer } from "@/components/site-viewer";
 import { Mark } from "@/components/wordmark";
 
 export const Route = createFileRoute("/$slug")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    t: typeof search.t === "string" ? search.t : "",
+  }),
   component: ViewerPage,
 });
 
 function ViewerPage() {
   const { slug } = Route.useParams();
-  const site = useQuery(api.sites.getBySlug, { slug });
+  const { t: token } = Route.useSearch();
+  // Edit-token holders may open a private page in the browser, matching what
+  // the skill promises. Strangers without a token still get a not-found page.
+  const siteByToken = useQuery(
+    api.sites.getBySlugForManager,
+    token ? { slug, editToken: token } : "skip",
+  );
+  const sitePublic = useQuery(api.sites.getBySlug, token ? "skip" : { slug });
+  const site = token ? siteByToken : sitePublic;
 
   // A published page belongs to whoever published it, so there is no app chrome
   // here at all: no nav, no spinner flash, just the document and a small badge.

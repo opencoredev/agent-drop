@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   type MutationCtx,
@@ -10,7 +11,7 @@ import {
   query,
 } from "./_generated/server";
 import { authComponent } from "./auth";
-import { generateEditToken, mintViewToken, sha256Hex, siteExpiry } from "./lib";
+import { LIMITS, generateEditToken, mintViewToken, sha256Hex, siteExpiry } from "./lib";
 import { r2 } from "./r2";
 import { siteKind, siteVisibility } from "./schema";
 import { MAX_VERSIONS, type SiteVersion, timeline } from "./timeline";
@@ -19,8 +20,17 @@ import { MAX_VERSIONS, type SiteVersion, timeline } from "./timeline";
  * cheap while still draining any backlog over successive updates. */
 const PRUNE_BATCH = 5;
 
+/** Bounded drain sizes so one mutation stays well inside Convex budgets. */
+const PURGE_OBJECT_BATCH = 10;
+const PURGE_IMAGE_BATCH = 10;
+const CLEANUP_IMAGE_BATCH = 50;
+const CLEANUP_SITE_BATCH = 5;
+
 /** Enough keys to separate machines or agents, few enough to stay reviewable. */
 const MAX_KEYS_PER_ACCOUNT = 10;
+
+/** Soft cap on the account sites list; the UI is a recent-sites panel, not an archive browser. */
+const LIST_MINE_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,6 +73,20 @@ async function trackObject(ctx: MutationCtx, siteId: Id<"sites">, key: string): 
   await ctx.db.insert("siteObjects", { siteId, key, createdAt: Date.now() });
 }
 
+/**
+ * Delete an R2 object. Returns true when the key is gone (deleted or already
+ * absent). On a transient failure, returns false so the caller keeps the ledger
+ * row and retries later — never forget a key we still owe a delete for.
+ */
+async function tryDeleteR2(ctx: MutationCtx, key: string): Promise<boolean> {
+  try {
+    await r2.deleteObject(ctx, key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Drop content objects that fell out of the retained history. The timeline keeps
  * MAX_VERSIONS nodes, so anything older can never be reached by undo again. One
  * update adds one object, so trimming a small batch per update holds steady. */
@@ -76,12 +100,7 @@ async function pruneObjects(ctx: MutationCtx, siteId: Id<"sites">): Promise<void
   if (excess <= 0) return;
 
   for (const row of tracked.slice(0, excess)) {
-    try {
-      await r2.deleteObject(ctx, row.key);
-    } catch {
-      // Leave the ledger row in place so a later update retries the delete.
-      continue;
-    }
+    if (!(await tryDeleteR2(ctx, row.key))) continue;
     await ctx.db.delete(row._id);
   }
 }
@@ -90,43 +109,122 @@ function isSiteVersion(value: unknown): value is SiteVersion {
   return typeof value === "object" && value !== null && "key" in value;
 }
 
-/** Delete a site and every R2 object + timeline node belonging to it. The object
- * ledger is the source of truth for content keys, so versions the timeline has
- * already pruned are deleted too. */
-async function purgeSite(ctx: MutationCtx, site: Doc<"sites">): Promise<void> {
-  const tracked = await ctx.db
+/**
+ * One bounded step of destroying a site's R2 blobs + metadata.
+ *
+ * Ledger rows are removed only after a successful R2 delete. The site row and
+ * timeline scope stay until every blob is gone, so a failed delete can be
+ * retried without losing the key.
+ *
+ * - `done` — site document removed
+ * - `more` — more ledger rows to process (chain immediately)
+ * - `retry` — R2 failed for at least one key (back off before retrying)
+ */
+async function drainSite(ctx: MutationCtx, site: Doc<"sites">): Promise<"done" | "more" | "retry"> {
+  let failed = false;
+
+  const objects = await ctx.db
     .query("siteObjects")
     .withIndex("by_site", (q) => q.eq("siteId", site._id))
-    .collect();
+    .take(PURGE_OBJECT_BATCH);
+  for (const row of objects) {
+    if (await tryDeleteR2(ctx, row.key)) await ctx.db.delete(row._id);
+    else failed = true;
+  }
+  if (objects.length === PURGE_OBJECT_BATCH) return failed ? "retry" : "more";
+
   const images = await ctx.db
     .query("siteImages")
     .withIndex("by_site", (q) => q.eq("siteId", site._id))
-    .collect();
+    .take(PURGE_IMAGE_BATCH);
+  for (const img of images) {
+    if (await tryDeleteR2(ctx, img.key)) await ctx.db.delete(img._id);
+    else failed = true;
+  }
+  if (images.length === PURGE_IMAGE_BATCH) return failed ? "retry" : "more";
 
-  // currentKey is included for sites deployed before the ledger existed.
-  const keys = new Set<string>([site.currentKey]);
-  for (const row of tracked) keys.add(row.key);
+  // Anything still on the ledger failed this round — keep the site for retry.
+  const leftoverObject = await ctx.db
+    .query("siteObjects")
+    .withIndex("by_site", (q) => q.eq("siteId", site._id))
+    .take(1);
+  if (leftoverObject.length > 0) return "retry";
+  const leftoverImage = await ctx.db
+    .query("siteImages")
+    .withIndex("by_site", (q) => q.eq("siteId", site._id))
+    .take(1);
+  if (leftoverImage.length > 0) return "retry";
+
+  // Keys that predate the ledger, or the live pointer, still live on the site
+  // row / timeline. Delete them before dropping the only place we remember them.
+  const legacyKeys = new Set<string>([site.currentKey]);
   for (const node of await timeline.listNodes(ctx, site.scope)) {
-    if (isSiteVersion(node.document)) keys.add(node.document.key);
+    if (isSiteVersion(node.document)) legacyKeys.add(node.document.key);
   }
-  for (const img of images) keys.add(img.key);
+  for (const key of legacyKeys) {
+    if (!(await tryDeleteR2(ctx, key))) return "retry";
+  }
 
-  for (const key of keys) {
-    try {
-      await r2.deleteObject(ctx, key);
-    } catch {
-      // Object may already be gone; deleting metadata below is what matters.
-    }
-  }
-  for (const row of tracked) await ctx.db.delete(row._id);
-  for (const img of images) await ctx.db.delete(img._id);
   await timeline.deleteScope(ctx, site.scope);
   await ctx.db.delete(site._id);
+  return "done";
+}
+
+/** Make a site unreadable immediately, then drain what this mutation can. */
+async function beginSiteDeletion(
+  ctx: MutationCtx,
+  site: Doc<"sites">,
+): Promise<"done" | "more" | "retry"> {
+  const now = Date.now();
+  if (site.expiresAt > now) {
+    await ctx.db.patch(site._id, { expiresAt: now, updatedAt: now });
+    site = { ...site, expiresAt: now, updatedAt: now };
+  }
+  return await drainSite(ctx, site);
+}
+
+function scheduleDrain(ctx: MutationCtx, siteId: Id<"sites">, status: "more" | "retry") {
+  const delay = status === "more" ? 0 : 60_000;
+  return ctx.scheduler.runAfter(delay, internal.sites.drainSiteById, { siteId });
 }
 
 // ---------------------------------------------------------------------------
 // Public queries (used by the web app)
 // ---------------------------------------------------------------------------
+
+/** Shared viewer/manage payload once the caller is allowed to see the site. */
+async function sitePayload(ctx: QueryCtx, site: Doc<"sites">) {
+  const visibility = visibilityOf(site);
+  const status = await timeline.status(ctx, site.scope);
+  const siteUrl = process.env.CONVEX_SITE_URL ?? "";
+  return {
+    slug: site.slug,
+    kind: site.kind,
+    title: site.title ?? null,
+    byteSize: site.byteSize,
+    hasImages: site.hasImages,
+    visibility,
+    owned: site.ownerSubject !== undefined,
+    createdAt: site.createdAt,
+    updatedAt: site.updatedAt,
+    expiresAt: site.expiresAt,
+    canUndo: status.canUndo,
+    canRedo: status.canRedo,
+    version: status.position,
+    versions: status.length,
+    // Versioned so the URL changes on every deploy/update/undo, busting any
+    // browser cache and reloading the viewer's <iframe>/fetch. A private page
+    // also carries a short-lived capability, minted only because the caller
+    // already proved they may see it.
+    contentUrl:
+      `${siteUrl}/api/v1/sites/${encodeURIComponent(site.slug)}/raw?v=${encodeURIComponent(
+        site.currentKey,
+      )}` +
+      (visibility === "private"
+        ? `&vt=${encodeURIComponent(await mintViewToken(site.slug, site.currentKey, Date.now()))}`
+        : ""),
+  };
+}
 
 /** Reactive metadata for the viewer. Returns `null` for unknown or expired slugs. */
 export const getBySlug = query({
@@ -137,38 +235,24 @@ export const getBySlug = query({
 
     // A private page must not even confirm it exists to a stranger, so this is
     // the same null the viewer renders as "this page is gone".
-    const visibility = visibilityOf(site);
-    if (visibility === "private" && !(await isOwner(ctx, site))) return null;
+    if (visibilityOf(site) === "private" && !(await isOwner(ctx, site))) return null;
 
-    const status = await timeline.status(ctx, site.scope);
-    const siteUrl = process.env.CONVEX_SITE_URL ?? "";
-    return {
-      slug: site.slug,
-      kind: site.kind,
-      title: site.title ?? null,
-      byteSize: site.byteSize,
-      hasImages: site.hasImages,
-      visibility,
-      owned: site.ownerSubject !== undefined,
-      createdAt: site.createdAt,
-      updatedAt: site.updatedAt,
-      expiresAt: site.expiresAt,
-      canUndo: status.canUndo,
-      canRedo: status.canRedo,
-      version: status.position,
-      versions: status.length,
-      // Versioned so the URL changes on every deploy/update/undo, busting any
-      // browser cache and reloading the viewer's <iframe>/fetch. A private page
-      // also carries a short-lived capability, minted only because the owner
-      // check above passed.
-      contentUrl:
-        `${siteUrl}/api/v1/sites/${encodeURIComponent(slug)}/raw?v=${encodeURIComponent(
-          site.currentKey,
-        )}` +
-        (visibility === "private"
-          ? `&vt=${encodeURIComponent(await mintViewToken(slug, site.currentKey, Date.now()))}`
-          : ""),
-    };
+    return await sitePayload(ctx, site);
+  },
+});
+
+/**
+ * Same payload as `getBySlug`, but authorized by the edit token instead of a
+ * session. The manage URL agents return includes `?t=…`; without this query a
+ * private page looks gone to anyone who is not signed in as the owner.
+ */
+export const getBySlugForManager = query({
+  args: { slug: v.string(), editToken: v.string() },
+  handler: async (ctx, { slug, editToken }) => {
+    const site = await liveBySlug(ctx, slug);
+    if (!site) return null;
+    if (site.editTokenHash !== (await sha256Hex(editToken))) return null;
+    return await sitePayload(ctx, site);
   },
 });
 
@@ -180,21 +264,19 @@ export const listMine = query({
     if (!user) return [];
     const sites = await ctx.db
       .query("sites")
-      .withIndex("by_owner", (q) => q.eq("ownerSubject", user._id))
-      .collect();
-    return sites
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((s) => ({
-        slug: s.slug,
-        kind: s.kind,
-        title: s.title ?? null,
-        updatedAt: s.updatedAt,
-        expiresAt: s.expiresAt,
-        hasImages: s.hasImages,
-      }));
+      .withIndex("by_owner_updated", (q) => q.eq("ownerSubject", user._id))
+      .order("desc")
+      .take(LIST_MINE_LIMIT);
+    return sites.map((s) => ({
+      slug: s.slug,
+      kind: s.kind,
+      title: s.title ?? null,
+      updatedAt: s.updatedAt,
+      expiresAt: s.expiresAt,
+      hasImages: s.hasImages,
+    }));
   },
 });
-
 // ---------------------------------------------------------------------------
 // Public mutation: claim a site by signing in
 // ---------------------------------------------------------------------------
@@ -228,6 +310,14 @@ export const claim = mutation({
     if (!site) throw new Error("Site not found.");
     if (site.editTokenHash !== (await sha256Hex(editToken))) {
       throw new Error("Invalid edit token for this site.");
+    }
+    // Edit token proves control of the page, but not the right to steal it from
+    // whoever already claimed it. Same owner re-claiming is a no-op success.
+    if (site.ownerSubject && site.ownerSubject !== user._id) {
+      throw new Error("This site is already claimed by another account.");
+    }
+    if (site.ownerSubject === user._id) {
+      return { ok: true, expiresAt: site.expiresAt };
     }
     const now = Date.now();
     const expiresAt = siteExpiry(now, true);
@@ -310,7 +400,7 @@ export const imageCount = internalQuery({
     const images = await ctx.db
       .query("siteImages")
       .withIndex("by_site", (q) => q.eq("siteId", siteId))
-      .collect();
+      .take(LIMITS.maxImagesPerSite + 1);
     return images.length;
   },
 });
@@ -497,37 +587,70 @@ export const purgeBySlug = internalMutation({
   handler: async (ctx, { slug }) => {
     const site = await bySlug(ctx, slug);
     if (!site) return { ok: false };
-    await purgeSite(ctx, site);
+    const status = await beginSiteDeletion(ctx, site);
+    if (status !== "done") await scheduleDrain(ctx, site._id, status);
     return { ok: true };
   },
 });
 
-/** Daily cron: delete expired images, then expired sites (bounded batches). */
+/** Continue a site drain after user delete or a previous partial cleanup step. */
+export const drainSiteById = internalMutation({
+  args: { siteId: v.id("sites") },
+  handler: async (ctx, { siteId }) => {
+    const site = await ctx.db.get(siteId);
+    if (!site) return { done: true };
+    const status = await drainSite(ctx, site);
+    if (status !== "done") await scheduleDrain(ctx, siteId, status);
+    return { done: status === "done", status };
+  },
+});
+
+/** Daily cron kickoff (and self-scheduled follow-ups): expire images, then sites. */
 export const cleanupExpired = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
+    let saturated = false;
+    let needsRetry = false;
 
     const expiredImages = await ctx.db
       .query("siteImages")
       .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
-      .take(100);
+      .take(CLEANUP_IMAGE_BATCH);
     for (const img of expiredImages) {
-      try {
-        await r2.deleteObject(ctx, img.key);
-      } catch {
-        // ignore; metadata removal below is the source of truth
-      }
-      await ctx.db.delete(img._id);
+      // Leave the row alone when R2 fails so a later pass can retry the key.
+      if (await tryDeleteR2(ctx, img.key)) await ctx.db.delete(img._id);
+      else needsRetry = true;
     }
+    if (expiredImages.length === CLEANUP_IMAGE_BATCH) saturated = true;
 
     const expiredSites = await ctx.db
       .query("sites")
       .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
-      .take(25);
-    for (const site of expiredSites) await purgeSite(ctx, site);
+      .take(CLEANUP_SITE_BATCH);
+    for (const site of expiredSites) {
+      const status = await drainSite(ctx, site);
+      if (status !== "done") {
+        if (status === "retry") needsRetry = true;
+        await scheduleDrain(ctx, site._id, status);
+      }
+    }
+    if (expiredSites.length === CLEANUP_SITE_BATCH) saturated = true;
 
-    return { images: expiredImages.length, sites: expiredSites.length };
+    // Keep draining immediately while the index still has a full batch. Failed
+    // deletes are left to drainSiteById backoff / a delayed cleanup pass.
+    if (saturated) {
+      await ctx.scheduler.runAfter(0, internal.sites.cleanupExpired, {});
+    } else if (needsRetry) {
+      await ctx.scheduler.runAfter(60_000, internal.sites.cleanupExpired, {});
+    }
+
+    return {
+      images: expiredImages.length,
+      sites: expiredSites.length,
+      saturated,
+      needsRetry,
+    };
   },
 });
 

@@ -154,6 +154,20 @@ function versionKey(slug: string, kind: "markdown" | "html"): string {
   return `sites/${slug}/${crypto.randomUUID()}.${kind === "html" ? "html" : "md"}`;
 }
 
+/** Best-effort rollback when metadata write fails after an R2 store. */
+async function discardR2Key(ctx: ActionCtx, key: string): Promise<void> {
+  try {
+    await r2.deleteObject(ctx, key);
+  } catch {
+    // Leave the orphan rather than fail the caller twice; cleanup cannot see
+    // keys that were never ledgered, so this is the only chance we get.
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 async function uniqueSlug(ctx: ActionCtx): Promise<string> {
   // Every site gets an unguessable random UUID. Collisions are astronomically
   // unlikely, but the existence check is cheap insurance.
@@ -280,8 +294,12 @@ async function opDeploy(ctx: ActionCtx, rateKey: string, body: unknown, caller: 
       now,
       expiresAt,
     });
-  } catch {
-    return { error: "Slug just became unavailable — please retry.", status: 409 };
+  } catch (err) {
+    await discardR2Key(ctx, key);
+    if (errorMessage(err).includes("slug-taken")) {
+      return { error: "Slug just became unavailable — please retry.", status: 409 };
+    }
+    return { error: "Failed to record the new site. Please retry.", status: 500 };
   }
 
   const app = appBase();
@@ -313,15 +331,21 @@ async function opUpdate(ctx: ActionCtx, slug: string, token: string | null, body
 
   const key = versionKey(slug, parsed.kind);
   await r2.store(ctx, parsed.bytes, { key, type: parsed.contentType, cacheControl: VERSION_CACHE });
-  await ctx.runMutation(internal.sites.recordUpdate, {
-    slug,
-    kind: parsed.kind,
-    title: parsed.title,
-    key,
-    contentType: parsed.contentType,
-    byteSize: parsed.bytes.byteLength,
-    visibility: parsed.visibility,
-  });
+  try {
+    await ctx.runMutation(internal.sites.recordUpdate, {
+      slug,
+      kind: parsed.kind,
+      title: parsed.title,
+      key,
+      contentType: parsed.contentType,
+      byteSize: parsed.bytes.byteLength,
+      visibility: parsed.visibility,
+    });
+  } catch (err) {
+    await discardR2Key(ctx, key);
+    if (errorMessage(err).includes("not-found")) return GONE;
+    return { error: "Failed to record the update. Please retry.", status: 500 };
+  }
   return { ok: true, ...(await publicStatus(ctx, slug)) };
 }
 
@@ -526,15 +550,22 @@ const sitesPost = httpAction(async (ctx, request) => {
       cacheControl: "public, max-age=604800, immutable",
     });
     const now = Date.now();
-    const { imageId } = await ctx.runMutation(internal.sites.recordImage, {
-      siteId: gate.auth.siteId,
-      slug,
-      key,
-      contentType,
-      byteSize: bytes.byteLength,
-      now,
-      expiresAt: now + RETENTION.imageMs,
-    });
+    let imageId: Id<"siteImages">;
+    try {
+      const recorded = await ctx.runMutation(internal.sites.recordImage, {
+        siteId: gate.auth.siteId,
+        slug,
+        key,
+        contentType,
+        byteSize: bytes.byteLength,
+        now,
+        expiresAt: now + RETENTION.imageMs,
+      });
+      imageId = recorded.imageId;
+    } catch {
+      await discardR2Key(ctx, key);
+      return fail(500, "Failed to record the image. Please retry.");
+    }
     return json(
       {
         ok: true,
@@ -640,6 +671,15 @@ const authorizationServerMetadata = httpAction(async () =>
 
 /** RFC 7591 dynamic client registration. Public clients, PKCE required. */
 const oauthRegister = httpAction(async (ctx, request) => {
+  const limit = await rateLimiter.limit(ctx, "oauthRegister", { key: clientIp(request) });
+  if (!limit.ok) {
+    return json(
+      { error: "temporarily_unavailable", error_description: "Rate limit exceeded." },
+      429,
+      retryHeader(limit.retryAfter),
+    );
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -686,6 +726,15 @@ function formValue(form: URLSearchParams, key: string): string {
 }
 
 const oauthToken = httpAction(async (ctx, request) => {
+  const limit = await rateLimiter.limit(ctx, "oauthToken", { key: clientIp(request) });
+  if (!limit.ok) {
+    return json(
+      { error: "temporarily_unavailable", error_description: "Rate limit exceeded." },
+      429,
+      retryHeader(limit.retryAfter),
+    );
+  }
+
   const form = new URLSearchParams(await request.text());
   const grantType = formValue(form, "grant_type");
   const clientId = formValue(form, "client_id");

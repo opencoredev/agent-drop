@@ -87,6 +87,7 @@ function MySites() {
           <Link
             to="/$slug"
             params={{ slug: s.slug }}
+            search={{ t: "" }}
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             Open

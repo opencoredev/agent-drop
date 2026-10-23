@@ -25,7 +25,14 @@ function ManagePage() {
   const { t: token } = Route.useSearch();
   const navigate = useNavigate();
   const { isAuthenticated } = useConvexAuth();
-  const site = useQuery(api.sites.getBySlug, { slug });
+  // Prefer the edit-token query when `?t=` is present so private pages stay
+  // manageable without a session — that is what manageUrl from deploy returns.
+  const siteByToken = useQuery(
+    api.sites.getBySlugForManager,
+    token ? { slug, editToken: token } : "skip",
+  );
+  const siteBySession = useQuery(api.sites.getBySlug, token ? "skip" : { slug });
+  const site = token ? siteByToken : siteBySession;
   const claim = useMutation(api.sites.claim);
   const setVisibility = useMutation(api.sites.setVisibility);
   const [busy, setBusy] = useState(false);

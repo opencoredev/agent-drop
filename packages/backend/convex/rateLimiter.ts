@@ -1,4 +1,4 @@
-import { DAY, HOUR, RateLimiter } from "@convex-dev/rate-limiter";
+import { DAY, HOUR, MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 
 import { components } from "./_generated/api";
 
@@ -15,4 +15,8 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   createSiteAuthed: { kind: "token bucket", rate: 1000, period: DAY, capacity: 100 },
   updateSite: { kind: "token bucket", rate: 120, period: HOUR, capacity: 20 },
   uploadImage: { kind: "token bucket", rate: 40, period: DAY, capacity: 10 },
+  // Dynamic client registration is unauthenticated; keep the oauthClients table
+  // from growing without bound under a spam loop.
+  oauthRegister: { kind: "token bucket", rate: 20, period: HOUR, capacity: 5 },
+  oauthToken: { kind: "token bucket", rate: 60, period: MINUTE, capacity: 20 },
 });

@@ -43,7 +43,8 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_expiresAt", ["expiresAt"])
-    .index("by_owner", ["ownerSubject"]),
+    .index("by_owner", ["ownerSubject"])
+    .index("by_owner_updated", ["ownerSubject", "updatedAt"]),
 
   // Long-lived keys that let an agent act as a signed-in account over the HTTP
   // API. Only the SHA-256 hash is stored; the raw key is shown once at creation.
@@ -88,7 +89,9 @@ export default defineSchema({
     anonymous: v.boolean(),
     resource: v.optional(v.string()),
     expiresAt: v.number(),
-  }).index("by_hash", ["codeHash"]),
+  })
+    .index("by_hash", ["codeHash"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   // Issued tokens, stored only as hashes. `audience` is checked on every call so
   // a token minted for something else cannot be replayed here.
